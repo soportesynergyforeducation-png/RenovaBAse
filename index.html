@@ -804,6 +804,39 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
 .rp-score-num { font-family:var(--mono); font-size:22px; font-weight:700; line-height:1; min-width:36px }
 .rp-score-meta { flex:1; min-width:0 }
 .rp-score-label { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.05em }
+
+/* ══ TERMINOS VIEW ══ */
+.terminos-toolbar {
+  padding:10px 14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  background:var(--surface); border-bottom:1px solid var(--border); flex-shrink:0;
+}
+.term-chip {
+  padding:4px 13px; border-radius:20px; font-size:12px; font-weight:500;
+  cursor:pointer; border:1px solid var(--border); background:transparent;
+  color:var(--text2); transition:all .12s; white-space:nowrap;
+}
+.term-chip:hover { border-color:var(--accent); color:var(--accent) }
+.term-chip.active { background:var(--accent); color:white; border-color:var(--accent) }
+.term-chip.renovacion.active { background:var(--go); border-color:var(--go) }
+.term-chip.upgrade.active { background:var(--purple); border-color:var(--purple) }
+.term-chip.extencion.active { background:var(--warn); border-color:var(--warn) }
+.term-chip.negativo.active { background:var(--fire); border-color:var(--fire) }
+.terminos-list { flex:1; overflow-y:auto }
+.termino-row {
+  display:flex; align-items:center; gap:11px;
+  padding:11px 14px; border-bottom:1px solid var(--border);
+  cursor:pointer; transition:background .1s;
+}
+.termino-row:hover { background:var(--bg) }
+.termino-badge {
+  font-size:10px; font-weight:700; padding:2px 9px; border-radius:10px;
+  text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; flex-shrink:0;
+}
+.termino-badge.renovacion { background:var(--go-lo); color:var(--go) }
+.termino-badge.upgrade { background:var(--purple-lo); color:var(--purple) }
+.termino-badge.extencion { background:var(--warn-lo); color:var(--warn) }
+.termino-badge.negativo { background:var(--fire-lo); color:var(--fire) }
+.term-motivo { font-size:10px; color:var(--text3); margin-top:2px }
 </style>
 <script>
 function loadFBScript(src){
@@ -1062,6 +1095,22 @@ async function initFirebaseRT(){
           <div class="agenda-list-title" id="agendaListTitle">Vencimientos del mes</div>
           <div id="agendaList"></div>
         </div>
+      </div>
+
+      <!-- TÉRMINOS -->
+      <div class="view" id="view-terminos">
+        <div class="terminos-toolbar">
+          <button class="term-chip active" data-tfilter="todos" onclick="setTermChip(this,'todos')">Todos</button>
+          <button class="term-chip renovacion" data-tfilter="renovacion" onclick="setTermChip(this,'renovacion')">✅ Renovaciones</button>
+          <button class="term-chip upgrade" data-tfilter="upgrade" onclick="setTermChip(this,'upgrade')">⬆️ Upgrades</button>
+          <button class="term-chip extencion" data-tfilter="extencion" onclick="setTermChip(this,'extencion')">📋 Extensiones</button>
+          <button class="term-chip negativo" data-tfilter="negativo" onclick="setTermChip(this,'negativo')">❌ No renovaron</button>
+          <select class="filter-select" id="filterTermMotivo" onchange="renderTerminosView()" style="display:none"><option value="">Todos los motivos</option></select>
+          <div class="toolbar-right" style="margin-left:auto">
+            <span class="leads-count" id="terminosCount"></span>
+          </div>
+        </div>
+        <div class="terminos-list" id="terminosList2"></div>
       </div>
 
       <!-- USUARIOS -->
@@ -1342,16 +1391,13 @@ function showView(name) {
   closeSidebar();
   if (name==='usuarios'&&SESSION.rol==='admin') loadUsuarios();
   if (name==='agenda') renderAgenda();
+  if (name==='terminos') renderTerminosView();
 }
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('sidebarOverlay').classList.toggle('open')}
 function closeSidebar(){document.getElementById('sidebar').classList.remove('open');document.getElementById('sidebarOverlay').classList.remove('open')}
 function quickFilter(v){showView('leads');setChipByValue(v);}
 function goToTerminos(){
-  showView('dashboard');
-  setTimeout(()=>{
-    const box=document.getElementById('terminosBox');
-    if(box) box.scrollIntoView({behavior:'smooth',block:'start'});
-  },150);
+  showView('terminos');
 }
 
 // ══ DASHBOARD ══
@@ -2323,6 +2369,99 @@ function showToast(msg,isError=false){
 }
 function esc(str){return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
+
+// ══ TÉRMINOS VIEW ══
+const TERMINOS_POSITIVOS = ['RENOVACION','UPGRADE','EXTENCION'];
+let ACTIVE_TERM_CHIP = 'todos';
+
+function getTerminoGroup(termino) {
+  const t = (termino||'').toUpperCase().trim();
+  if (t === 'RENOVACION') return 'renovacion';
+  if (t === 'UPGRADE')    return 'upgrade';
+  if (t === 'EXTENCION')  return 'extencion';
+  if (t)                  return 'negativo';
+  return null;
+}
+
+function setTermChip(el, val) {
+  document.querySelectorAll('.term-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  ACTIVE_TERM_CHIP = val;
+  // Mostrar dropdown de motivo solo para negativos
+  const sel = document.getElementById('filterTermMotivo');
+  if (sel) sel.style.display = val === 'negativo' ? '' : 'none';
+  renderTerminosView();
+}
+
+function renderTerminosView() {
+  const list = document.getElementById('terminosList2');
+  const countEl = document.getElementById('terminosCount');
+  const motivoF = (document.getElementById('filterTermMotivo')||{}).value || '';
+  if (!list) return;
+
+  // Leads con término definido
+  let leads = ALL_LEADS.filter(l => {
+    const g = getTerminoGroup(l.termino);
+    if (!g) return false;
+    if (ACTIVE_TERM_CHIP !== 'todos' && g !== ACTIVE_TERM_CHIP) return false;
+    if (motivoF && l.termino !== motivoF) return false;
+    return true;
+  });
+
+  // Poblar dropdown de motivos para negativos
+  const sel = document.getElementById('filterTermMotivo');
+  if (sel && ACTIVE_TERM_CHIP === 'negativo') {
+    const motivos = [...new Set(ALL_LEADS
+      .filter(l => getTerminoGroup(l.termino) === 'negativo')
+      .map(l => l.termino).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="">Todos los motivos</option>' +
+      motivos.map(m => `<option value="${esc(m)}" ${m===motivoF?'selected':''}>${esc(m)}</option>`).join('');
+  }
+
+  if (countEl) countEl.textContent = leads.length + ' registros';
+
+  if (!leads.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-title">Sin resultados</div><div class="empty-sub">No hay leads con este término</div></div>';
+    return;
+  }
+
+  list.innerHTML = leads.map(l => {
+    const g = getTerminoGroup(l.termino);
+    const color = avatarColor(l.nombre);
+    const ini = (l.nombre||'?').charAt(0).toUpperCase();
+    return `<div class="termino-row" onclick="goToLeadDetail(${l.fila})">
+      <div class="lead-avatar" style="background:${color}">${ini}</div>
+      <div class="lead-main">
+        <div class="lead-name">${esc(l.nombre||'Sin nombre')}</div>
+        <div class="lead-meta">${esc(l.correo||'')}${l.telefono?' · '+esc(l.telefono):''}</div>
+        <div class="term-motivo">${esc(l.membresia||'')}${l.abeja?' · @'+esc(l.abeja):''}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+        <span class="termino-badge ${g}">${esc(l.termino||'')}</span>
+        ${l.vencimiento?`<span style="font-size:10px;color:var(--text3)">${esc(l.vencimiento)}</span>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function goToLeadDetail(fila) {
+  showView('leads');
+  setTimeout(() => {
+    // Buscar si está en la página actual o resetear filtros
+    const row = document.getElementById('row-'+fila);
+    if (row) {
+      selectLead(fila);
+      row.scrollIntoView({behavior:'smooth', block:'center'});
+    } else {
+      // Resetear filtros y buscar
+      setChipByValue('todos');
+      setTimeout(() => {
+        const r2 = document.getElementById('row-'+fila);
+        if (r2) { selectLead(fila); r2.scrollIntoView({behavior:'smooth',block:'center'}); }
+      }, 300);
+    }
+  }, 150);
+}
 // Cerrar modales con Escape
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
