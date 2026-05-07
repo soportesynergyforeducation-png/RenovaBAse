@@ -881,6 +881,34 @@ async function initFirebaseRT(){
           if(change.type==='added') loadLeadsSilent();
         });
       });
+
+    // Listener directo en rb_scores para actualizar pagoEstado en tiempo real
+    var scoresFirstLoad = true;
+    _fbDB.collection('rb_scores').onSnapshot(function(snap){
+      if(scoresFirstLoad){ scoresFirstLoad=false; return; }
+      var changed = false;
+      snap.docChanges().forEach(function(change){
+        if(change.type==='removed') return;
+        var d = change.doc.data();
+        var key = change.doc.id;
+        if(!SCORES[key]) SCORES[key] = {};
+        Object.assign(SCORES[key], d);
+        var lead = ALL_LEADS.find(function(l){ return scoreKey(l.correo)===key; });
+        if(lead){
+          if(d.terminoTipo)    lead.terminoTipo    = d.terminoTipo;
+          if(d.pagoFechaVerif) lead.pagoFechaVerif = d.pagoFechaVerif;
+          lead.pagoEstado = d.pagoEstado || '';
+          changed = true;
+        }
+      });
+      if(changed){
+        var tv = document.getElementById('view-terminos');
+        if(tv && tv.classList.contains('active')) renderTerminosView();
+        renderTerminosDash();
+        renderComisionesDash();
+      }
+    }, function(err){ console.warn('rb_scores RT error:', err); });
+
   }catch(e){console.warn('Firebase RT error:',e);}
 }
 </script>
