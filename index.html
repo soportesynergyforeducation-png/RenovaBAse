@@ -873,16 +873,27 @@ async function initFirebaseRT(){
     if (SESSION && SESSION.rol==='admin') {
       loadComisiones().then(() => renderComisionesDash());
     }
-    var firstLoad=true;
-    _fbDB.collection('rb_eventos').orderBy('ts','desc').limit(1)
+    // Listener en rb_pendientes para propagación en tiempo real de comprobantes
+    _fbDB.collection('rb_pendientes').where('estado','==','pendiente')
       .onSnapshot(function(snap){
-        if(firstLoad){firstLoad=false;return;}
-        snap.docChanges().forEach(function(change){
-          if(change.type==='added') loadLeadsSilent();
+        PENDIENTES_MAP = {};
+        snap.forEach(function(doc){ PENDIENTES_MAP[doc.id] = doc.data(); });
+        var count = Object.keys(PENDIENTES_MAP).length;
+        var chip = document.getElementById('chipPendientes');
+        if(chip){
+          chip.innerHTML = '⏳ Pendientes por verificar'
+            + (count > 0 ? ' <span style="background:var(--warn);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;margin-left:4px">'+count+'</span>' : '');
+        }
+        // Sync pagoEstado into ALL_LEADS from PENDIENTES_MAP
+        ALL_LEADS.forEach(function(lead){
+          var entry = Object.values(PENDIENTES_MAP).find(function(p){ return p.fila === lead.fila; });
+          if(entry){ lead.pagoEstado = 'pendiente'; lead.comprobante = entry.comprobante || lead.comprobante; }
         });
-      });
+        var tv = document.getElementById('view-terminos');
+        if(tv && tv.classList.contains('active') && ACTIVE_TERM_CHIP === 'pendiente') renderTerminosView();
+      }, function(err){ console.warn('rb_pendientes RT error:', err); });
 
-    // Listener directo en rb_scores para actualizar pagoEstado en tiempo real
+    // Listener en rb_scores para mantener terminoTipo / pagoFechaVerif sincronizados
     var scoresFirstLoad = true;
     _fbDB.collection('rb_scores').onSnapshot(function(snap){
       if(scoresFirstLoad){ scoresFirstLoad=false; return; }
@@ -897,15 +908,15 @@ async function initFirebaseRT(){
         if(lead){
           if(d.terminoTipo)    lead.terminoTipo    = d.terminoTipo;
           if(d.pagoFechaVerif) lead.pagoFechaVerif = d.pagoFechaVerif;
-          lead.pagoEstado = d.pagoEstado || '';
+          if(d.pagoEstado === 'verificado') lead.pagoEstado = 'verificado';
           changed = true;
         }
       });
       if(changed){
-        var tv = document.getElementById('view-terminos');
-        if(tv && tv.classList.contains('active')) renderTerminosView();
         renderTerminosDash();
         renderComisionesDash();
+        var tv = document.getElementById('view-terminos');
+        if(tv && tv.classList.contains('active')) renderTerminosView();
       }
     }, function(err){ console.warn('rb_scores RT error:', err); });
 
@@ -1246,9 +1257,10 @@ async function initFirebaseRT(){
 const API = '/api/proxy';
 
 // ══ STATE ══
-let SESSION     = null;
-let COMISIONES  = {}; // { 'Renovacion MX 3M': 500, ... }
-let ALL_LEADS   = [];
+let SESSION       = null;
+let COMISIONES    = {}; // { 'Renovacion MX 3M': 500, ... }
+let PENDIENTES_MAP = {}; // { docId: { correo, comprobante, terminoTipo, fila, ... } }
+let ALL_LEADS     = [];
 let FILTERED    = [];
 let ACTIVE_CHIP = 'todos';
 let SELECTED_ROW   = null;
@@ -1896,8 +1908,21 @@ async function submitComprobante(fila) {
     await saveScoreToFirebase(key, st);
     ALL_LEADS[idx].comprobante = url;
     ALL_LEADS[idx].pagoEstado = 'pendiente';
-    // Notificar al admin en tiempo real
-    if (_fbDB) _fbDB.collection('rb_eventos').add({ ts: new Date().toISOString(), tipo: 'comprobante', fila: fila }).catch(()=>{});
+    // Escribir en rb_pendientes para propagación en tiempo real al admin
+    if (_fbDB) {
+      const pendDoc = {
+        fila: fila,
+        correo: lead.correo || '',
+        nombre: lead.nombre || '',
+        abeja: lead.abeja || '',
+        termino: lead.termino || '',
+        terminoTipo: lead.terminoTipo || '',
+        comprobante: url,
+        estado: 'pendiente',
+        ts: new Date().toISOString()
+      };
+      _fbDB.collection('rb_pendientes').doc(String(fila)).set(pendDoc).catch(()=>{});
+    }
     showToast('Comprobante enviado ✓');
     openDetailPanel(ALL_LEADS[idx]);
   } catch(e) { showToast('Error al enviar', true); if (btn) { btn.disabled = false; btn.textContent = 'Enviar comprobante'; } }
@@ -1916,6 +1941,8 @@ async function verificarPago(fila) {
   await saveScoreToFirebase(key, st);
   ALL_LEADS[idx].pagoEstado = 'verificado';
   ALL_LEADS[idx].pagoFechaVerif = st.pagoFechaVerif;
+  // Marcar como verificado en rb_pendientes → el listener del admin lo retira automáticamente
+  if (_fbDB) _fbDB.collection('rb_pendientes').doc(String(fila)).set({ estado: 'verificado', pagoFechaVerif: st.pagoFechaVerif }, { merge: true }).catch(()=>{});
   showToast('Pago verificado ✓');
   openDetailPanel(ALL_LEADS[idx]);
   renderTerminosDash();
@@ -2818,11 +2845,9 @@ function renderTerminosView() {
     // Filtrar leads con término
     let leads = ALL_LEADS.filter(l => {
       if (ACTIVE_TERM_CHIP === 'pendiente') {
-        // Solo positivos con comprobante pendiente de verificar
-        const g = getTerminoGroup(l.termino);
-        if (!g || g === 'negativo') return false;
-        const ps = l.pagoEstado || (SCORES[scoreKey(l.correo)] || {}).pagoEstado || '';
-        if (ps !== 'pendiente') return false;
+        // Solo los que están en PENDIENTES_MAP (fuente de verdad en tiempo real)
+        const inPend = Object.values(PENDIENTES_MAP).some(p => p.fila === l.fila);
+        if (!inPend) return false;
         if (abejaF) {
           if (abejaF === '__sin__') { if ((l.abeja||'').trim()) return false; }
           else if (l.abeja !== abejaF) return false;
@@ -2874,7 +2899,8 @@ function renderTerminosView() {
       const color = avatarColor(l.nombre);
       const ini   = (l.nombre||'?').charAt(0).toUpperCase();
       const ps    = l.pagoEstado || (SCORES[scoreKey(l.correo)] || {}).pagoEstado || '';
-      const comp  = l.comprobante || '';
+      const pendEntry = Object.values(PENDIENTES_MAP).find(p => p.fila === l.fila);
+      const comp  = (pendEntry && pendEntry.comprobante) || l.comprobante || '';
       const subTipo = l.terminoTipo || '';
       const pendienteRow = ACTIVE_TERM_CHIP === 'pendiente' && comp;
       return `<div class="termino-row" onclick="goToLeadDetail(${l.fila})">
