@@ -869,6 +869,10 @@ async function initFirebaseRT(){
       });
     }
     _fbDB=firebase.firestore();
+    // Cargar comisiones una vez que Firebase está listo
+    if (SESSION && SESSION.rol==='admin') {
+      loadComisiones().then(() => renderComisionesDash());
+    }
     var firstLoad=true;
     _fbDB.collection('rb_eventos').orderBy('ts','desc').limit(1)
       .onSnapshot(function(snap){
@@ -1490,7 +1494,6 @@ function startApp() {
     document.getElementById('filterAbeja').style.display='';
     document.getElementById('chipPendientes').style.display='';
     document.getElementById('comisionesBox').style.display='';
-    loadComisiones();
   } else {
     document.getElementById('adminSideDiv').style.display='none';
     document.getElementById('adminSideSection').style.display='none';
