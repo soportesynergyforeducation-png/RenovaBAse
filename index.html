@@ -829,6 +829,16 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
 .term-chip.extencion.active { background:var(--warn); border-color:var(--warn) }
 .term-chip.negativo.active { background:var(--fire); border-color:var(--fire) }
 .terminos-list { flex:1; overflow-y:auto }
+.dash-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:9px;margin-bottom:14px}
+.dash-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r2);padding:12px 14px;text-align:center}
+.dash-card-n{font-size:22px;font-weight:700;line-height:1}
+.dash-card-l{font-size:10px;color:var(--text3);margin-top:4px;font-weight:500}
+.dash-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text3);margin-bottom:8px}
+.dash-vendor-row{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r2);padding:10px 14px;display:flex;flex-direction:column;gap:6px;margin-bottom:6px}
+.dash-vendor-name{font-size:13px;font-weight:700;color:var(--text1);flex:1}
+.dash-vendor-stats{display:flex;gap:12px;flex-wrap:wrap}
+.dash-vendor-stat{font-size:11px;color:var(--text3)}
+.dash-vendor-stat b{color:var(--text1)}
 .termino-row {
   display:flex; align-items:center; gap:11px;
   padding:11px 14px; border-bottom:1px solid var(--border);
@@ -3286,7 +3296,6 @@ function renderComisionesDash() {
   const el  = document.getElementById('comisionesList');
   if (!box || !el || !SESSION || SESSION.rol !== 'admin') return;
 
-  // Todos los sub-tipos en orden
   const allTipos = Object.values(SUB_TERM).flat();
 
   // ── TARIFAS (colapsable) ──
@@ -3313,59 +3322,102 @@ function renderComisionesDash() {
     </div>
     <div style="height:1px;background:var(--border);margin:14px 0"></div>`;
 
-  // ── REPORTE — usa los mismos filtros de fecha de la toolbar ──
+  // ── Filtros de fecha ──
   const desdeEl = document.getElementById('filterTermFechaDesde')?.value || '';
   const hastaEl = document.getElementById('filterTermFechaHasta')?.value || '';
-
   let desde = null, hasta = null;
   if (desdeEl) { const [y,mo,d]=desdeEl.split('-').map(Number); desde=new Date(y,mo-1,d,0,0,0); }
   if (hastaEl) { const [y,mo,d]=hastaEl.split('-').map(Number); hasta=new Date(y,mo-1,d,23,59,59,999); }
 
-  // Leads verificados con terminoTipo y comision
-  const verificados = ALL_LEADS.filter(l => {
-    const g = getTerminoGroup(l.termino);
-    if (!g || g === 'negativo') return false;
-    const ps = l.pagoEstado || (SCORES[scoreKey(l.correo)]||{}).pagoEstado || '';
-    if (ps !== 'verificado') return false;
-    if (desde || hasta) {
-      const ft = parseFechaTermino(l);
-      if (!ft) return false;
-      if (desde && ft < desde) return false;
-      if (hasta && ft > hasta) return false;
-    }
+  const inRango = l => {
+    if (!desde && !hasta) return true;
+    const ft = parseFechaTermino(l);
+    if (!ft) return false;
+    if (desde && ft < desde) return false;
+    if (hasta && ft > hasta) return false;
     return true;
+  };
+
+  // Todos los positivos en el rango
+  const positivos = ALL_LEADS.filter(l => {
+    const g = getTerminoGroup(l.termino);
+    return g && g !== 'negativo' && inRango(l);
   });
 
-  // Agrupar por abeja
-  const porAbeja = {};
-  let totalGeneral = 0;
-  verificados.forEach(l => {
-    const ab = l.abeja || '— Sin asignar —';
-    const tipo = l.terminoTipo || l.termino || '';
-    const monto = COMISIONES[tipo] || 0;
-    if (!porAbeja[ab]) porAbeja[ab] = { leads: [], total: 0 };
-    porAbeja[ab].leads.push({ l, tipo, monto });
-    porAbeja[ab].total += monto;
-    totalGeneral += monto;
+  // Métricas globales
+  const totalPositivos = positivos.length;
+  const totalRenov  = positivos.filter(l => getTerminoGroup(l.termino) === 'renovacion').length;
+  const totalUpg    = positivos.filter(l => getTerminoGroup(l.termino) === 'upgrade').length;
+  const totalExt    = positivos.filter(l => getTerminoGroup(l.termino) === 'extencion').length;
+  const totalPend   = positivos.filter(l => {
+    const ps = l.pagoEstado || (SCORES[scoreKey(l.correo)]||{}).pagoEstado || '';
+    return ps === 'pendiente';
+  }).length;
+  const verificadosList = positivos.filter(l => {
+    const ps = l.pagoEstado || (SCORES[scoreKey(l.correo)]||{}).pagoEstado || '';
+    return ps === 'verificado';
   });
+  let totalComision = 0;
+  verificadosList.forEach(l => { totalComision += COMISIONES[l.terminoTipo||l.termino||''] || 0; });
 
   const fmt$ = n => '$' + n.toLocaleString('es-MX');
 
-  const reporteHTML = Object.entries(porAbeja).sort((a,b) => b[1].total - a[1].total).map(([ab, data]) => `
-    <div style="margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:2px solid var(--border)">
-        <span style="font-size:12px;font-weight:700;color:var(--text1)">@${esc(ab)}</span>
-        <span style="font-size:13px;font-weight:700;color:var(--go)">${fmt$(data.total)}</span>
-      </div>
-      ${data.leads.map(({l, tipo, monto}) => `
-        <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border2);font-size:11px">
-          <span style="flex:1;color:var(--text1);font-weight:500">${esc(l.nombre||l.correo||'—')}</span>
-          <span style="color:var(--text3)">${esc(tipo)}</span>
-          <span style="font-weight:600;color:var(--accent);min-width:55px;text-align:right">${fmt$(monto)}</span>
-        </div>`).join('')}
-    </div>`).join('');
+  const resumenHTML = `
+    <div class="dash-section-title">Resumen${desdeEl||hastaEl ? ` · ${desdeEl||''}${desdeEl&&hastaEl?' → ':''}${hastaEl||''}` : ''}</div>
+    <div class="dash-cards">
+      <div class="dash-card"><div class="dash-card-n" style="color:var(--go)">${totalRenov}</div><div class="dash-card-l">Renovaciones</div></div>
+      <div class="dash-card"><div class="dash-card-n" style="color:var(--purple)">${totalUpg}</div><div class="dash-card-l">Upgrades</div></div>
+      <div class="dash-card"><div class="dash-card-n" style="color:var(--warn)">${totalExt}</div><div class="dash-card-l">Extensiones</div></div>
+      <div class="dash-card"><div class="dash-card-n" style="color:var(--warn)">${totalPend}</div><div class="dash-card-l">Pendientes</div></div>
+      <div class="dash-card"><div class="dash-card-n" style="color:var(--go)">${verificadosList.length}</div><div class="dash-card-l">Verificados</div></div>
+      <div class="dash-card"><div class="dash-card-n" style="color:var(--text1)">${totalPositivos}</div><div class="dash-card-l">Total</div></div>
+    </div>`;
 
-  const csvBtn = verificados.length ? `
+  // Agrupar positivos por abeja
+  const abejaMap = {};
+  positivos.forEach(l => {
+    const ab = l.abeja || '— Sin asignar —';
+    if (!abejaMap[ab]) abejaMap[ab] = { renov:0, upg:0, ext:0, pend:0, verif:0, comision:0, leads:[] };
+    const g  = getTerminoGroup(l.termino);
+    const ps = l.pagoEstado || (SCORES[scoreKey(l.correo)]||{}).pagoEstado || '';
+    if (g === 'renovacion') abejaMap[ab].renov++;
+    if (g === 'upgrade')    abejaMap[ab].upg++;
+    if (g === 'extencion')  abejaMap[ab].ext++;
+    if (ps === 'pendiente') abejaMap[ab].pend++;
+    if (ps === 'verificado') {
+      abejaMap[ab].verif++;
+      abejaMap[ab].comision += COMISIONES[l.terminoTipo||l.termino||''] || 0;
+    }
+    abejaMap[ab].leads.push(l);
+  });
+
+  const vendorRows = Object.entries(abejaMap)
+    .sort((a,b) => b[1].comision - a[1].comision)
+    .map(([ab, s]) => {
+      const total = s.leads.length;
+      return `
+      <div class="dash-vendor-row">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="dash-vendor-name">@${esc(ab)}</div>
+          <div style="font-size:11px;color:var(--text3)">${total} lead${total!==1?'s':''}</div>
+        </div>
+        <div class="dash-vendor-stats">
+          <span class="dash-vendor-stat"><b style="color:var(--go)">${s.renov}</b> renovaciones</span>
+          <span class="dash-vendor-stat"><b style="color:var(--purple)">${s.upg}</b> upgrades</span>
+          <span class="dash-vendor-stat"><b style="color:var(--warn)">${s.ext}</b> extensiones</span>
+        </div>
+        <div class="dash-vendor-stats">
+          <span class="dash-vendor-stat"><b style="color:var(--warn)">${s.pend}</b> pendientes</span>
+          <span class="dash-vendor-stat" style="margin-left:auto"><b style="color:var(--go)">${s.verif}</b> verificados</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:6px;border-top:1px solid var(--border)">
+          <span style="font-size:11px;color:var(--text3)">💰 Comisión total</span>
+          <span style="font-size:14px;font-weight:700;color:var(--go);margin-left:auto">${fmt$(s.comision)}</span>
+        </div>
+      </div>`;
+    }).join('');
+
+  const csvBtn = verificadosList.length ? `
     <button class="btn-sm" style="margin-top:10px" onclick="exportComisionesCSV()">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Descargar CSV
@@ -3373,15 +3425,17 @@ function renderComisionesDash() {
 
   el.innerHTML = `
     ${tarifasHTML}
-    <div style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:10px">Reporte de pagos verificados${desdeEl||hastaEl ? ` <span style="font-weight:400;text-transform:none;color:var(--text3)">(${desdeEl||''}${desdeEl&&hastaEl?' → ':''}${hastaEl||''})</span>` : ''}</div>
-    ${verificados.length ? `
-      ${reporteHTML}
+    ${resumenHTML}
+    <div style="height:1px;background:var(--border);margin:14px 0"></div>
+    <div class="dash-section-title">Por abeja</div>
+    ${abejaMap && Object.keys(abejaMap).length ? `
+      ${vendorRows}
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:2px solid var(--border);margin-top:4px">
-        <span style="font-size:12px;font-weight:700;color:var(--text2)">TOTAL GENERAL</span>
-        <span style="font-size:15px;font-weight:700;color:var(--go)">${fmt$(totalGeneral)}</span>
+        <span style="font-size:12px;font-weight:700;color:var(--text2)">TOTAL COMISIONES</span>
+        <span style="font-size:15px;font-weight:700;color:var(--go)">${fmt$(totalComision)}</span>
       </div>
       ${csvBtn}
-    ` : `<div style="font-size:12px;color:var(--text3);padding:12px 0">No hay pagos verificados en este periodo</div>`}
+    ` : `<div style="font-size:12px;color:var(--text3);padding:12px 0">No hay datos en este periodo</div>`}
   `;
 }
 
