@@ -1288,18 +1288,22 @@ async function applyScoreAction(lead, actionKey) {
   return st;
 }
 
-async function applyTerminoScore(lead, termino) {
+async function applyTerminoScore(lead, termino, terminoTipo) {
   const POSITIVOS = ['RENOVACION','UPGRADE','EXTENCION'];
   const isPos = POSITIVOS.includes(termino.toUpperCase());
   const st = getScore(lead);
   st.score = isPos ? 100 : 0;
+  if (terminoTipo) st.terminoTipo = terminoTipo;
   const dot = isPos ? 'g' : 'f';
-  const txt = isPos ? '✅ ' + termino : '❌ ' + termino;
+  const txt = isPos ? '✅ ' + (terminoTipo || termino) : '❌ ' + termino;
   const now = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
   st.hist = st.hist || [];
   st.hist.unshift({ dot, text: txt, time: now });
   const key = scoreKey(lead.correo);
   SCORES[key] = st;
+  // Guardar terminoTipo en el lead en memoria para el dashboard
+  const idx = ALL_LEADS.findIndex(l => l.correo === lead.correo);
+  if (idx >= 0 && terminoTipo) ALL_LEADS[idx].terminoTipo = terminoTipo;
   await saveScoreToFirebase(key, st);
   return st;
 }
@@ -1307,16 +1311,31 @@ async function applyTerminoScore(lead, termino) {
 async function saveScoreToFirebase(key, st) {
   if (!_fbDB) return;
   try {
-    await _fbDB.collection('rb_scores').doc(key).set({
-      score: st.score,
-      hist:  st.hist.slice(0,20),
-      updatedAt: new Date().toISOString()
-    });
+    const doc = { score: st.score, hist: st.hist.slice(0,20), updatedAt: new Date().toISOString() };
+    if (st.terminoTipo) doc.terminoTipo = st.terminoTipo;
+    await _fbDB.collection('rb_scores').doc(key).set(doc);
   } catch(e) { console.warn('saveScore error:', e); }
 }
 
 async function loadScoresFromFirebase(leads) {
   // No-op — scores se cargan de forma lazy al abrir cada lead
+}
+
+async function loadAllTerminoTipos() {
+  if (!_fbDB) return;
+  try {
+    const snap = await _fbDB.collection('rb_scores').get();
+    const map = {};
+    snap.forEach(doc => { if (doc.data().terminoTipo) map[doc.id] = doc.data().terminoTipo; });
+    ALL_LEADS.forEach(l => {
+      const key = scoreKey(l.correo);
+      if (map[key]) {
+        l.terminoTipo = map[key];
+        if (!SCORES[key]) SCORES[key] = {};
+        SCORES[key].terminoTipo = map[key];
+      }
+    });
+  } catch(e) { console.warn('loadAllTerminoTipos error:', e); }
 }
 
 async function loadScoreForLead(lead) {
@@ -1924,7 +1943,11 @@ function openDetailPanel(l) {
           </div>
           <div class="dp-field" style="margin:0">
             <label>Término</label>
-            <select id="dp_termino">${selOpts(OPT_TERM, l.termino)}</select>
+            <select id="dp_termino" onchange="onTerminoChange()">${selOpts(OPT_TERM, l.termino)}</select>
+          </div>
+          <div class="dp-field" style="margin:0;display:${TERMINOS_POSITIVOS.includes((l.termino||'').toUpperCase())?'':'none'}" id="dp_tipo_wrap">
+            <label>Tipo de término</label>
+            <select id="dp_termino_tipo">${(SUB_TERM[(l.termino||'').toUpperCase()]||[]).map(s=>`<option value="${esc(s)}" ${s===(scData.terminoTipo||'')?'selected':''}>${esc(s)}</option>`).join('')}</select>
           </div>
         </div>
 
@@ -2204,6 +2227,7 @@ async function saveLead(fila){
     com4:            document.getElementById('dp_com4')?.value||'',
     estado:          document.getElementById('dp_estado')?.value||'',
     termino:         document.getElementById('dp_termino')?.value||'',
+    terminoTipo:     document.getElementById('dp_termino_tipo')?.value||'',
     notas:           document.getElementById('dp_notas')?.value||'',
     comprobante:     document.getElementById('dp_comprobante')?.value||''
   };
@@ -2231,7 +2255,8 @@ async function saveLead(fila){
       }
       // Si se guardó un término, actualizar score y dashboard
       if(params.termino) {
-        await applyTerminoScore(lead, params.termino);
+        const tipoSub = TERMINOS_POSITIVOS.includes(params.termino.toUpperCase()) ? (params.terminoTipo||'') : '';
+        await applyTerminoScore(lead, params.termino, tipoSub);
         renderTerminosDash();
       }
       // Refrescar dropdowns y vistas (por si cambió la abeja)
@@ -2536,6 +2561,11 @@ function esc(str){return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt
 
 // ══ TÉRMINOS VIEW ══
 const TERMINOS_POSITIVOS = ['RENOVACION','UPGRADE','EXTENCION'];
+const SUB_TERM = {
+  'RENOVACION': ['Renovacion MX 3M','Renovacion MX 12M','Renovacion LATAM 3M','Renovacion LATAM 12M','Renovacion USA 3M','Renovacion USA 12M'],
+  'UPGRADE':    ['Upgrade MX 3M','Upgrade MX 12M','Upgrade LATAM 3M','Upgrade LATAM 12M','Upgrade USA 3M','Upgrade USA 12M'],
+  'EXTENCION':  ['Extencion MX 3M','Extencion MX 12M','Extencion LATAM 3M','Extencion LATAM 12M','Extencion USA 3M','Extencion USA 12M'],
+};
 let ACTIVE_TERM_CHIP = 'todos';
 
 function getTerminoGroup(termino) {
@@ -2545,6 +2575,21 @@ function getTerminoGroup(termino) {
   if (t === 'EXTENCION')  return 'extencion';
   if (t)                  return 'negativo';
   return null;
+}
+
+function onTerminoChange() {
+  const sel = document.getElementById('dp_termino');
+  const wrap = document.getElementById('dp_tipo_wrap');
+  const subSel = document.getElementById('dp_termino_tipo');
+  if (!sel || !wrap || !subSel) return;
+  const t = sel.value.toUpperCase();
+  const subs = SUB_TERM[t] || [];
+  if (subs.length) {
+    subSel.innerHTML = subs.map(s => `<option value="${s}">${s}</option>`).join('');
+    wrap.style.display = '';
+  } else {
+    wrap.style.display = 'none';
+  }
 }
 
 function setTermChip(el, val) {
@@ -2912,6 +2957,8 @@ async function loadLeads() {
     // Si vista Términos activa, refrescarla con datos completos
     const tvFinal = document.getElementById('view-terminos');
     if (tvFinal && tvFinal.classList.contains('active')) renderTerminosView();
+    // Cargar tipos de términos positivos desde Firebase para el dashboard
+    loadAllTerminoTipos().then(() => renderTerminosDash());
   } catch(e){
     document.getElementById('leadsList').innerHTML='<div class="empty-state"><div class="empty-title">Sin conexión</div><div class="empty-sub">Verifica tu internet</div></div>';
   }
@@ -2958,10 +3005,17 @@ function renderTerminosDash() {
     return;
   }
 
-  // Separar positivos y negativos
+  // Separar positivos y negativos, y contar sub-tipos
   const POSITIVOS = ['RENOVACION', 'UPGRADE', 'EXTENCION'];
   const positivos = [];
   const negativos = [];
+  const subCounts = {};
+  ALL_LEADS.forEach(l => {
+    const t = (l.termino||'').toUpperCase().trim();
+    if (POSITIVOS.includes(t) && l.terminoTipo) {
+      subCounts[l.terminoTipo] = (subCounts[l.terminoTipo] || 0) + 1;
+    }
+  });
   Object.entries(counts).forEach(([k, v]) => {
     if (POSITIVOS.includes(k)) positivos.push([k, v]);
     else negativos.push([k, v]);
@@ -2973,6 +3027,7 @@ function renderTerminosDash() {
   const totalNeg = negativos.reduce((s, [, v]) => s + v, 0);
 
   const max = Math.max(...Object.values(counts), 1);
+  const subMax = Math.max(...Object.values(subCounts), 1);
 
   const renderRow = (k, v, color) => {
     const pct = (v / totalConTermino * 100).toFixed(1);
@@ -2980,6 +3035,17 @@ function renderTerminosDash() {
     return `
       <div class="mem-item">
         <span class="mem-name" title="${esc(k)}">${esc(k.length > 22 ? k.slice(0, 22) + '…' : k)}</span>
+        <div class="mem-bar-wrap"><div class="mem-bar" style="width:${wid}%;background:${color}"></div></div>
+        <span class="mem-count" style="min-width:60px">${v} <span style="color:var(--text3);font-weight:500;font-size:10px">(${pct}%)</span></span>
+      </div>`;
+  };
+
+  const renderSubRow = (k, v, color) => {
+    const pct = (v / totalConTermino * 100).toFixed(1);
+    const wid = Math.round(v / subMax * 100);
+    return `
+      <div class="mem-item" style="padding-left:12px;opacity:.85">
+        <span class="mem-name" title="${esc(k)}" style="font-size:11px">${esc(k.length > 24 ? k.slice(0,24)+'…' : k)}</span>
         <div class="mem-bar-wrap"><div class="mem-bar" style="width:${wid}%;background:${color}"></div></div>
         <span class="mem-count" style="min-width:60px">${v} <span style="color:var(--text3);font-weight:500;font-size:10px">(${pct}%)</span></span>
       </div>`;
@@ -3008,6 +3074,11 @@ function renderTerminosDash() {
   if (positivos.length) {
     html += `<div style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--go);margin-bottom:8px">✓ Positivos</div>`;
     html += positivos.map(([k, v]) => renderRow(k, v, 'var(--go)')).join('');
+    const subEntries = Object.entries(subCounts).sort((a,b) => b[1]-a[1]);
+    if (subEntries.length) {
+      html += `<div style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin:10px 0 6px;padding-left:12px">Detalle por tipo</div>`;
+      html += subEntries.map(([k, v]) => renderSubRow(k, v, 'var(--go)')).join('');
+    }
   }
   if (negativos.length) {
     html += `<div style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--fire);margin:14px 0 8px">✗ Negativos</div>`;
