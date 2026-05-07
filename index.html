@@ -1134,9 +1134,9 @@ async function initFirebaseRT(){
           <select class="filter-select" id="filterTermAbeja" onchange="renderTerminosView()"><option value="">Todas las abejas</option></select>
           <span style="width:1px;height:18px;background:var(--border2);margin:0 4px"></span>
           <label style="font-size:11px;color:var(--text3);font-weight:500">Desde</label>
-          <input type="date" id="filterTermFechaDesde" class="filter-select" style="padding:4px 8px;font-size:12px" onchange="renderTerminosView()">
+          <input type="date" id="filterTermFechaDesde" class="filter-select" style="padding:4px 8px;font-size:12px" onchange="renderTerminosView();renderComisionesDash()">
           <label style="font-size:11px;color:var(--text3);font-weight:500">Hasta</label>
-          <input type="date" id="filterTermFechaHasta" class="filter-select" style="padding:4px 8px;font-size:12px" onchange="renderTerminosView()">
+          <input type="date" id="filterTermFechaHasta" class="filter-select" style="padding:4px 8px;font-size:12px" onchange="renderTerminosView();renderComisionesDash()">
           <button class="btn-sm" onclick="clearTermFilters()" title="Limpiar filtros">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
@@ -3235,9 +3235,9 @@ function renderComisionesDash() {
     </div>
     <div style="height:1px;background:var(--border);margin:14px 0"></div>`;
 
-  // ── REPORTE ──
-  const desdeEl = document.getElementById('comDesde')?.value || '';
-  const hastaEl = document.getElementById('comHasta')?.value || '';
+  // ── REPORTE — usa los mismos filtros de fecha de la toolbar ──
+  const desdeEl = document.getElementById('filterTermFechaDesde')?.value || '';
+  const hastaEl = document.getElementById('filterTermFechaHasta')?.value || '';
 
   let desde = null, hasta = null;
   if (desdeEl) { const [y,mo,d]=desdeEl.split('-').map(Number); desde=new Date(y,mo-1,d,0,0,0); }
@@ -3295,13 +3295,7 @@ function renderComisionesDash() {
 
   el.innerHTML = `
     ${tarifasHTML}
-    <div style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:10px">Reporte de pagos verificados</div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-      <label style="font-size:11px;color:var(--text3)">Desde</label>
-      <input type="date" id="comDesde" value="${desdeEl}" style="padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--r1);background:var(--surface);color:var(--text1)" onchange="renderComisionesDash()">
-      <label style="font-size:11px;color:var(--text3)">Hasta</label>
-      <input type="date" id="comHasta" value="${hastaEl}" style="padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--r1);background:var(--surface);color:var(--text1)" onchange="renderComisionesDash()">
-    </div>
+    <div style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:10px">Reporte de pagos verificados${desdeEl||hastaEl ? ` <span style="font-weight:400;text-transform:none;color:var(--text3)">(${desdeEl||''}${desdeEl&&hastaEl?' → ':''}${hastaEl||''})</span>` : ''}</div>
     ${verificados.length ? `
       ${reporteHTML}
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:2px solid var(--border);margin-top:4px">
@@ -3314,8 +3308,8 @@ function renderComisionesDash() {
 }
 
 function exportComisionesCSV() {
-  const desdeEl = document.getElementById('comDesde')?.value || '';
-  const hastaEl = document.getElementById('comHasta')?.value || '';
+  const desdeEl = document.getElementById('filterTermFechaDesde')?.value || '';
+  const hastaEl = document.getElementById('filterTermFechaHasta')?.value || '';
   let desde = null, hasta = null;
   if (desdeEl) { const [y,mo,d]=desdeEl.split('-').map(Number); desde=new Date(y,mo-1,d,0,0,0); }
   if (hastaEl) { const [y,mo,d]=hastaEl.split('-').map(Number); hasta=new Date(y,mo-1,d,23,59,59,999); }
