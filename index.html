@@ -1851,41 +1851,43 @@ async function selectLead(fila){
 }
 
 async function submitComprobante(fila) {
-  const lead = ALL_LEADS.find(l => l.fila === fila);
-  if (!lead) return;
+  const idx = ALL_LEADS.findIndex(l => l.fila === fila);
+  if (idx < 0) return;
+  const lead = ALL_LEADS[idx];
   const url = (document.getElementById('dp_comprobante')?.value || '').trim();
   if (!url) { showToast('Escribe el enlace del comprobante primero', true); return; }
   const btn = document.getElementById('btnEnviarComp');
   if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
   try {
-    // Guardar URL en Sheets
     await apiGet({ action:'updateLead', correo: lead.correo||'', telefonoBusqueda: lead.telefono||'', comprobante: url });
-    // Marcar como pendiente en Firebase
     const key = scoreKey(lead.correo);
     const st = getScore(lead);
     st.pagoEstado = 'pendiente';
+    if (lead.terminoTipo) st.terminoTipo = lead.terminoTipo;
     SCORES[key] = st;
     await saveScoreToFirebase(key, st);
-    const idx = ALL_LEADS.findIndex(l => l.correo === lead.correo);
-    if (idx >= 0) { ALL_LEADS[idx].comprobante = url; ALL_LEADS[idx].pagoEstado = 'pendiente'; }
+    ALL_LEADS[idx].comprobante = url;
+    ALL_LEADS[idx].pagoEstado = 'pendiente';
     showToast('Comprobante enviado ✓');
-    openDetailPanel(ALL_LEADS.find(l => l.fila === fila) || lead);
+    openDetailPanel(ALL_LEADS[idx]);
   } catch(e) { showToast('Error al enviar', true); if (btn) { btn.disabled = false; btn.textContent = 'Enviar comprobante'; } }
 }
 
 async function verificarPago(fila) {
-  const lead = ALL_LEADS.find(l => l.fila === fila);
-  if (!lead) return;
+  const idx = ALL_LEADS.findIndex(l => l.fila === fila);
+  if (idx < 0) return;
+  const lead = ALL_LEADS[idx];
   const key = scoreKey(lead.correo);
   const st = getScore(lead);
   st.pagoEstado = 'verificado';
   st.pagoFechaVerif = new Date().toISOString();
+  if (lead.terminoTipo) st.terminoTipo = lead.terminoTipo;
   SCORES[key] = st;
   await saveScoreToFirebase(key, st);
-  const idx = ALL_LEADS.findIndex(l => l.correo === lead.correo);
-  if (idx >= 0) { ALL_LEADS[idx].pagoEstado = 'verificado'; ALL_LEADS[idx].pagoFechaVerif = st.pagoFechaVerif; }
+  ALL_LEADS[idx].pagoEstado = 'verificado';
+  ALL_LEADS[idx].pagoFechaVerif = st.pagoFechaVerif;
   showToast('Pago verificado ✓');
-  openDetailPanel(ALL_LEADS.find(l => l.fila === fila) || lead);
+  openDetailPanel(ALL_LEADS[idx]);
   renderTerminosDash();
   renderComisionesDash();
   const tv = document.getElementById('view-terminos');
@@ -2704,18 +2706,24 @@ function setTermChip(el, val) {
 let FILTERED_TERMINOS = [];
 
 function clearTermFilters() {
-  document.getElementById('filterTermAbeja').value = '';
-  document.getElementById('filterTermFechaDesde').value = '';
-  document.getElementById('filterTermFechaHasta').value = '';
+  const abejaEl = document.getElementById('filterTermAbeja');
+  const desdeEl = document.getElementById('filterTermFechaDesde');
+  const hastaEl = document.getElementById('filterTermFechaHasta');
+  if (abejaEl) abejaEl.value = '';
+  if (desdeEl) desdeEl.value = '';
+  if (hastaEl) hastaEl.value = '';
   const motivoSel = document.getElementById('filterTermMotivo');
-  if (motivoSel) motivoSel.value = '';
+  if (motivoSel) { motivoSel.value = ''; motivoSel.style.display = 'none'; }
   // Reset chip a "todos"
   document.querySelectorAll('.term-chip').forEach(c => c.classList.remove('active'));
   const todos = document.querySelector('.term-chip[data-tfilter="todos"]');
   if (todos) todos.classList.add('active');
   ACTIVE_TERM_CHIP = 'todos';
-  if (motivoSel) motivoSel.style.display = 'none';
+  // Reset opacity que pudo haber puesto el chip de pendientes
+  document.querySelectorAll('#filterTermFechaDesde, #filterTermFechaHasta, #filterTermAbeja')
+    .forEach(f => { f.style.opacity = ''; });
   renderTerminosView();
+  renderComisionesDash();
 }
 
 function parseFechaTermino(l) {
