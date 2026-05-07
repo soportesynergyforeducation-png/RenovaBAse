@@ -1042,10 +1042,6 @@ async function initFirebaseRT(){
             <div class="dash-box-title">Términos de gestión</div>
             <div id="terminosList"></div>
           </div>
-          <div class="dash-box" id="comisionesBox" style="display:none;margin-bottom:14px">
-            <div class="dash-box-title">Comisiones</div>
-            <div id="comisionesList"></div>
-          </div>
         </div>
       </div>
 
@@ -1155,6 +1151,11 @@ async function initFirebaseRT(){
         <!-- Panel de estadísticas con filtros aplicados -->
         <div id="terminosStatsBox" style="padding:14px;background:var(--surface2);border-bottom:1px solid var(--border)"></div>
         <div class="terminos-list" id="terminosList2"></div>
+        <!-- Comisiones (solo admin) -->
+        <div id="comisionesBox" style="display:none;padding:16px;border-top:2px solid var(--border)">
+          <div style="font-size:13px;font-weight:700;color:var(--text1);margin-bottom:14px">Comisiones</div>
+          <div id="comisionesList"></div>
+        </div>
       </div>
 
       <!-- USUARIOS -->
@@ -1537,6 +1538,7 @@ function showView(name) {
   if (name==='usuarios'&&SESSION.rol==='admin') loadUsuarios();
   if (name==='agenda') renderAgenda();
   if (name==='terminos') {
+    renderComisionesDash();
     if (ALL_LEADS.length > 0) {
       renderTerminosView();
     } else {
