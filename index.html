@@ -1955,7 +1955,8 @@ async function submitComprobante(fila) {
     const terminoTipoSel = fv('dp_termino_tipo') || lead.terminoTipo || '';
     const estadoSel     = fv('dp_estado')       || lead.estado      || '';
 
-    const TERMINOS_SHEET = ['RENOVACION','UPGRADE','EXTENCION','NO INTERESADO',
+    // UPGRADE y EXTENCION NO están en la validación de datos del Sheet — van solo a Firebase
+    const TERMINOS_SHEET = ['RENOVACION','NO INTERESADO',
       'FALTA DE ATENCION DE SOPORTE','FALTA DE ATENCION DE ASESOR',
       'NO ERA LO QUE BUSCABA','NO LO USO','ECONOMICO','NO CONTACTAR','REEMBOLSO'];
     const ESTADOS_SHEET  = ['COTACTADO','# INVALIDO','PENDIENTE','NO CONTACTAR'];
@@ -2569,8 +2570,9 @@ async function saveLead(fila){
     comprobante:     fv('dp_comprobante') || lead.comprobante || ''
   };
   // Solo enviar termino/estado si el valor está en la lista blanca del Sheet
-  if (TERMINOS_SHEET.includes(terminoSel))  params.termino     = terminoSel;
-  else if (!terminoSel && TERMINOS_SHEET.includes(lead.termino||'')) params.termino = lead.termino;
+  if (TERMINOS_SHEET.includes(terminoSel))  params.termino = terminoSel;
+  else if (!terminoSel && TERMINOS_SHEET.includes(lead.termino || '')) params.termino = lead.termino;
+  // UPGRADE/EXTENCION: se guardan en Firebase via applyTerminoScore, NO en el Sheet
   if (terminoTipoSel)                       params.terminoTipo = terminoTipoSel;
   else if (lead.terminoTipo)                params.terminoTipo = lead.terminoTipo;
   if (ESTADOS_SHEET.includes(estadoSel))    params.estado      = estadoSel;
