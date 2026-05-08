@@ -3272,24 +3272,15 @@ function renderTerminosStats(leads, container, filters) {
   const topAbejas = Object.entries(porAbeja).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const topTipos  = Object.entries(porTipo).sort((a,b)=>b[1]-a[1]).slice(0,5);
 
-  // Barra compacta: una sola línea con filtros activos + números clave
+  // Barra compacta de una sola línea
   container.innerHTML = `
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      ${filtrosTxt ? `<span style="font-size:11px;color:var(--text3)">${partes.join(' · ')}</span><span style="color:var(--border2)">|</span>` : ''}
+      ${partes.length ? `<span style="font-size:11px;color:var(--text3)">${partes.join(' · ')}</span><span style="color:var(--border2)">|</span>` : ''}
       <span style="font-size:12px;color:var(--text2)"><b style="color:var(--accent)">${total}</b> registros</span>
-      <span style="font-size:12px;color:var(--text2)">✅ <b style="color:var(--go)">${pos}</b> positivos ${total?`<span style="color:var(--text3)">(${(pos/total*100).toFixed(0)}%)</span>`:''}
-      </span>
-      <span style="font-size:12px;color:var(--text2)">❌ <b style="color:var(--fire)">${neg}</b> negativos ${total?`<span style="color:var(--text3)">(${(neg/total*100).toFixed(0)}%)</span>`:''}
-      </span>
-      ${topTipos.length ? `<span style="font-size:11px;color:var(--text3);margin-left:auto">${topTipos.slice(0,3).map(([k,v])=>`${esc(k)}: ${v}`).join(' · ')}</span>` : ''}
+      <span style="font-size:12px;color:var(--text2)">✅ <b style="color:var(--go)">${pos}</b> positivos${total ? ` <span style="color:var(--text3)">(${(pos/total*100).toFixed(0)}%)</span>` : ''}</span>
+      <span style="font-size:12px;color:var(--text2)">❌ <b style="color:var(--fire)">${neg}</b> negativos${total ? ` <span style="color:var(--text3)">(${(neg/total*100).toFixed(0)}%)</span>` : ''}</span>
+      ${topTipos.length ? `<span style="font-size:11px;color:var(--text3);margin-left:auto">${topTipos.slice(0,3).map(([k,v]) => `${esc(k)}: ${v}`).join(' · ')}</span>` : ''}
     </div>
-    ${false ? `
-    <div>
-      <span>${esc('')}</span>
-            <span style="font-weight:600">${v} <span style="color:var(--text3);font-weight:400">(${(v/total*100).toFixed(0)}%)</span></span>
-          </div>`).join('')}
-      </div>
-    </div>` : ''}
   `;
 }
 
