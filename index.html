@@ -1226,7 +1226,7 @@ async function initFirebaseRT(){
           </div>
         </div>
         <!-- Panel de estadísticas con filtros aplicados -->
-        <div id="terminosStatsBox" style="padding:14px;background:var(--surface2);border-bottom:1px solid var(--border)"></div>
+        <div id="terminosStatsBox" style="padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0"></div>
         <div class="terminos-list" id="terminosList2"></div>
         <!-- Comisiones (solo admin) -->
         <div id="comisionesBox" style="display:none;padding:16px;border-top:2px solid var(--border)">
@@ -3035,7 +3035,8 @@ function renderTerminosView() {
     }
 
     // ── MODO LISTA (chips específicos) ──────────────────────────────────────
-    if (comBox && SESSION && SESSION.rol === 'admin') comBox.style.display = '';
+    // comisionesBox se oculta aquí — las comisiones ya se ven en el chip "Todos"
+    if (comBox) comBox.style.display = 'none';
 
     let leads = ALL_LEADS.filter(l => {
       if (ACTIVE_TERM_CHIP === 'pendiente') {
@@ -3271,39 +3272,20 @@ function renderTerminosStats(leads, container, filters) {
   const topAbejas = Object.entries(porAbeja).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const topTipos  = Object.entries(porTipo).sort((a,b)=>b[1]-a[1]).slice(0,5);
 
+  // Barra compacta: una sola línea con filtros activos + números clave
   container.innerHTML = `
-    ${filtrosTxt}
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:14px">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:12px">
-        <div style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:4px">Total</div>
-        <div style="font-size:22px;font-weight:700;color:var(--accent);line-height:1">${total}</div>
-      </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:12px">
-        <div style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:4px">Positivos</div>
-        <div style="font-size:22px;font-weight:700;color:var(--go);line-height:1">${pos}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:2px">${total?(pos/total*100).toFixed(1):0}%</div>
-      </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:12px">
-        <div style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:4px">Negativos</div>
-        <div style="font-size:22px;font-weight:700;color:var(--fire);line-height:1">${neg}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:2px">${total?(neg/total*100).toFixed(1):0}%</div>
-      </div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      ${filtrosTxt ? `<span style="font-size:11px;color:var(--text3)">${partes.join(' · ')}</span><span style="color:var(--border2)">|</span>` : ''}
+      <span style="font-size:12px;color:var(--text2)"><b style="color:var(--accent)">${total}</b> registros</span>
+      <span style="font-size:12px;color:var(--text2)">✅ <b style="color:var(--go)">${pos}</b> positivos ${total?`<span style="color:var(--text3)">(${(pos/total*100).toFixed(0)}%)</span>`:''}
+      </span>
+      <span style="font-size:12px;color:var(--text2)">❌ <b style="color:var(--fire)">${neg}</b> negativos ${total?`<span style="color:var(--text3)">(${(neg/total*100).toFixed(0)}%)</span>`:''}
+      </span>
+      ${topTipos.length ? `<span style="font-size:11px;color:var(--text3);margin-left:auto">${topTipos.slice(0,3).map(([k,v])=>`${esc(k)}: ${v}`).join(' · ')}</span>` : ''}
     </div>
-    ${total ? `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-      <div>
-        <div style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Por tipo</div>
-        ${topTipos.map(([k,v]) => `
-          <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:1px solid var(--border)">
-            <span>${esc(k)}</span>
-            <span style="font-weight:600">${v} <span style="color:var(--text3);font-weight:400">(${(v/total*100).toFixed(0)}%)</span></span>
-          </div>`).join('')}
-      </div>
-      <div>
-        <div style="font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Por abeja</div>
-        ${topAbejas.map(([k,v]) => `
-          <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:1px solid var(--border)">
-            <span>${esc(k)}</span>
+    ${false ? `
+    <div>
+      <span>${esc('')}</span>
             <span style="font-weight:600">${v} <span style="color:var(--text3);font-weight:400">(${(v/total*100).toFixed(0)}%)</span></span>
           </div>`).join('')}
       </div>
