@@ -1943,30 +1943,37 @@ async function submitComprobante(fila) {
   const btn = document.getElementById('btnEnviarComp');
   if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
   try {
-    // Leer campos del panel; si el campo está vacío en el panel usa el valor existente del lead
-    // (evita enviar cadenas vacías a celdas con validación de datos en el Sheet)
-    const fv = id => document.getElementById(id)?.value ?? null;
+    // Valores permitidos en el Sheet (con validación de datos)
+    const TERMINOS_VALIDOS = ['RENOVACION','UPGRADE','EXTENCION','NO INTERESADO',
+      'FALTA DE ATENCION DE SOPORTE','FALTA DE ATENCION DE ASESOR',
+      'NO ERA LO QUE BUSCABA','NO LO USO','ECONOMICO','NO CONTACTAR','REEMBOLSO'];
+    const ESTADOS_VALIDOS  = ['COTACTADO','# INVALIDO','PENDIENTE','NO CONTACTAR'];
+
+    const fv = id => (document.getElementById(id)?.value || '').trim();
+
+    const terminoPanel = fv('dp_termino') || lead.termino || '';
+    const terminoTipoPanel = fv('dp_termino_tipo') || lead.terminoTipo || '';
+    const estadoPanel = fv('dp_estado') || lead.estado || '';
+
     const params = {
       action:           'updateLead',
       correo:           lead.correo   || '',
       telefonoBusqueda: lead.telefono || '',
-      evento:           fv('dp_evento')       ?? lead.evento      ?? '',
-      membresia:        fv('dp_membresia')    ?? lead.membresia   ?? '',
-      vencimiento:      fv('dp_vencimiento')  ?? lead.vencimiento ?? '',
-      abeja:            fv('dp_abeja')        ?? lead.abeja       ?? '',
-      com1:             fv('dp_com1')         ?? lead.com1        ?? '',
-      com2:             fv('dp_com2')         ?? lead.com2        ?? '',
-      com3:             fv('dp_com3')         ?? lead.com3        ?? '',
-      com4:             fv('dp_com4')         ?? lead.com4        ?? '',
-      estado:           fv('dp_estado')       ?? lead.estado      ?? '',
-      termino:          fv('dp_termino')      || lead.termino     || '',
-      terminoTipo:      fv('dp_termino_tipo') || lead.terminoTipo || '',
-      notas:            fv('dp_notas')        ?? lead.notas       ?? '',
+      evento:           fv('dp_evento')      || lead.evento      || '',
+      membresia:        fv('dp_membresia')   || lead.membresia   || '',
+      vencimiento:      fv('dp_vencimiento') || lead.vencimiento || '',
+      abeja:            fv('dp_abeja')       || lead.abeja       || '',
+      com1:             fv('dp_com1')        || lead.com1        || '',
+      com2:             fv('dp_com2')        || lead.com2        || '',
+      com3:             fv('dp_com3')        || lead.com3        || '',
+      com4:             fv('dp_com4')        || lead.com4        || '',
+      notas:            fv('dp_notas')       || lead.notas       || '',
       comprobante:      url
     };
-    // No enviar termino vacío si el Sheet tiene validación — solo omitirlo
-    if (!params.termino) delete params.termino;
-    if (!params.terminoTipo) delete params.terminoTipo;
+    // Solo enviar termino/estado si el valor es válido según las reglas del Sheet
+    if (TERMINOS_VALIDOS.includes(terminoPanel))  params.termino     = terminoPanel;
+    if (terminoTipoPanel)                         params.terminoTipo = terminoTipoPanel;
+    if (ESTADOS_VALIDOS.includes(estadoPanel))    params.estado      = estadoPanel;
     const res = await apiGet(params);
     if (!res.ok) { showToast('Error al guardar: ' + res.error, true); if (btn) { btn.disabled = false; btn.textContent = 'Enviar comprobante'; } return; }
 
@@ -2529,28 +2536,32 @@ async function saveLead(fila){
   btn.disabled=true;btn.textContent='Guardando…';
   // Obtener el lead actual para enviar correo como identificador
   const lead=ALL_LEADS.find(l=>l.fila===fila)||{};
-  const fv = id => document.getElementById(id)?.value ?? null;
+  const TERMINOS_VALIDOS = ['RENOVACION','UPGRADE','EXTENCION','NO INTERESADO',
+    'FALTA DE ATENCION DE SOPORTE','FALTA DE ATENCION DE ASESOR',
+    'NO ERA LO QUE BUSCABA','NO LO USO','ECONOMICO','NO CONTACTAR','REEMBOLSO'];
+  const ESTADOS_VALIDOS  = ['COTACTADO','# INVALIDO','PENDIENTE','NO CONTACTAR'];
+  const fv = id => (document.getElementById(id)?.value || '').trim();
+  const terminoPanel    = fv('dp_termino')      || lead.termino     || '';
+  const terminoTipoPanel = fv('dp_termino_tipo') || lead.terminoTipo || '';
+  const estadoPanel     = fv('dp_estado')       || lead.estado      || '';
   const params={
     action:'updateLead',
     correo:          lead.correo||'',
     telefonoBusqueda:lead.telefono||'',
-    evento:          fv('dp_evento')       ?? lead.evento      ?? '',
-    membresia:       fv('dp_membresia')    ?? lead.membresia   ?? '',
-    vencimiento:     fv('dp_vencimiento')  ?? lead.vencimiento ?? '',
-    abeja:           fv('dp_abeja')        ?? lead.abeja       ?? '',
-    com1:            fv('dp_com1')         ?? lead.com1        ?? '',
-    com2:            fv('dp_com2')         ?? lead.com2        ?? '',
-    com3:            fv('dp_com3')         ?? lead.com3        ?? '',
-    com4:            fv('dp_com4')         ?? lead.com4        ?? '',
-    estado:          fv('dp_estado')       ?? lead.estado      ?? '',
-    termino:         fv('dp_termino')      || lead.termino     || '',
-    terminoTipo:     fv('dp_termino_tipo') || lead.terminoTipo || '',
-    notas:           fv('dp_notas')        ?? lead.notas       ?? '',
-    comprobante:     fv('dp_comprobante')  ?? lead.comprobante ?? ''
+    evento:          fv('dp_evento')      || lead.evento      || '',
+    membresia:       fv('dp_membresia')   || lead.membresia   || '',
+    vencimiento:     fv('dp_vencimiento') || lead.vencimiento || '',
+    abeja:           fv('dp_abeja')       || lead.abeja       || '',
+    com1:            fv('dp_com1')        || lead.com1        || '',
+    com2:            fv('dp_com2')        || lead.com2        || '',
+    com3:            fv('dp_com3')        || lead.com3        || '',
+    com4:            fv('dp_com4')        || lead.com4        || '',
+    notas:           fv('dp_notas')       || lead.notas       || '',
+    comprobante:     fv('dp_comprobante') || lead.comprobante || ''
   };
-  // No enviar termino/tipo vacíos a celdas con validación de datos
-  if (!params.termino) delete params.termino;
-  if (!params.terminoTipo) delete params.terminoTipo;
+  if (TERMINOS_VALIDOS.includes(terminoPanel))  params.termino     = terminoPanel;
+  if (terminoTipoPanel)                         params.terminoTipo = terminoTipoPanel;
+  if (ESTADOS_VALIDOS.includes(estadoPanel))    params.estado      = estadoPanel;
   try {
     const res=await apiGet(params);
     if(res.ok){
