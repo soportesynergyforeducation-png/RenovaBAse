@@ -1085,6 +1085,10 @@ async function initFirebaseRT(){
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           Tarifas de comisiones
         </a>
+        <a class="nav-item" style="color:var(--fire)" onclick="resetAllScores();closeSidebar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4"/></svg>
+          Reiniciar todos los scores
+        </a>
       </div>
       <!-- MOBILE: Theme toggle -->
       <div class="sidebar-divider" id="themeSideDiv"></div>
@@ -2333,6 +2337,7 @@ function openDetailPanel(l) {
         <!-- GUARDAR -->
         <div class="rp-sec">
           <button class="dp-save-btn" id="dpSaveBtn" onclick="saveLead(${l.fila})">Guardar cambios</button>
+          <button class="btn-sm" style="margin-top:8px;width:100%;color:var(--fire);border-color:var(--fire-lo)" onclick="resetScore(${l.fila})">↺ Reiniciar score</button>
         </div>
 
       </div>
@@ -3723,6 +3728,45 @@ function exportComisionesCSV() {
   const a = document.createElement('a'); a.href=url; a.download='Comisiones_'+new Date().toISOString().slice(0,10)+'.csv';
   a.click(); URL.revokeObjectURL(url);
   showToast('CSV exportado ✓');
+}
+
+async function resetScore(fila) {
+  const lead = ALL_LEADS.find(l => l.fila === fila);
+  if (!lead) return;
+  if (!confirm(`¿Reiniciar el score de ${lead.nombre || lead.correo}?`)) return;
+  const key = scoreKey(lead.correo);
+  delete SCORES[key];
+  if (_fbDB) {
+    try {
+      await _fbDB.collection('rb_scores').doc(key).delete();
+    } catch(e) { console.warn('resetScore delete error:', e); }
+  }
+  openDetailPanel(lead);
+  renderLeads();
+  showToast('Score reiniciado ✓');
+}
+
+async function resetAllScores() {
+  if (!confirm('¿Reiniciar los scores de TODOS los leads? Esta acción no se puede deshacer.')) return;
+  SCORES = {};
+  PENDIENTES_MAP = {};
+  if (_fbDB) {
+    try {
+      const snap = await _fbDB.collection('rb_scores').get();
+      const batch = _fbDB.batch();
+      snap.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+    } catch(e) {
+      // batch no disponible en compat, borrar uno a uno
+      try {
+        const snap = await _fbDB.collection('rb_scores').get();
+        await Promise.all(snap.docs.map(doc => doc.ref.delete()));
+      } catch(e2) { console.warn('resetAllScores error:', e2); }
+    }
+  }
+  closeDetailPanel();
+  renderLeads();
+  showToast('Todos los scores reiniciados ✓');
 }
 
 function openTarifasPanel() {
