@@ -936,6 +936,7 @@ async function initFirebaseRT(){
         Object.assign(SCORES[key], d);
         var lead = ALL_LEADS.find(function(l){ return scoreKey(l.correo)===key; });
         if(lead){
+          if(d.termino)        lead.termino        = d.termino;
           if(d.terminoTipo)    lead.terminoTipo    = d.terminoTipo;
           if(d.pagoFechaVerif) lead.pagoFechaVerif = d.pagoFechaVerif;
           if(d.pagoEstado === 'verificado') lead.pagoEstado = 'verificado';
@@ -945,6 +946,7 @@ async function initFirebaseRT(){
       if(changed){
         renderTerminosDash();
         renderComisionesDash();
+        applyFilters(false);
         var tv = document.getElementById('view-terminos');
         if(tv && tv.classList.contains('active')) renderTerminosView();
       }
@@ -1162,11 +1164,11 @@ async function initFirebaseRT(){
       <!-- BARRA MASIVA -->
       <div class="bulk-bar" id="bulkBar">
         <span class="bulk-count" id="bulkCount">0 seleccionados</span>
-        <div class="bulk-sep"></div>
-        <select class="bulk-select" id="bulkAbeja">
+        <div class="bulk-sep" id="bulkSep" style="display:none"></div>
+        <select class="bulk-select" id="bulkAbeja" style="display:none">
           <option value="">— Asignar abeja —</option>
         </select>
-        <button class="bulk-apply" id="bulkApply" onclick="applyBulkAbeja()">Aplicar</button>
+        <button class="bulk-apply" id="bulkApply" onclick="applyBulkAbeja()" style="display:none">Aplicar</button>
         <button class="bulk-cancel" onclick="clearSelection()" title="Cancelar">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
@@ -1207,8 +1209,8 @@ async function initFirebaseRT(){
           <button class="term-chip negativo" data-tfilter="negativo" onclick="setTermChip(this,'negativo')">❌ No renovaron</button>
           <button class="term-chip" data-tfilter="pendiente" onclick="setTermChip(this,'pendiente')" id="chipPendientes" style="display:none;background:var(--warn-lo);color:var(--warn)">⏳ Pendientes por verificar</button>
           <select class="filter-select" id="filterTermMotivo" onchange="renderTerminosView()" style="display:none"><option value="">Todos los motivos</option></select>
-          <span style="width:1px;height:18px;background:var(--border2);margin:0 4px"></span>
-          <select class="filter-select" id="filterTermAbeja" onchange="renderTerminosView()"><option value="">Todas las abejas</option></select>
+          <span id="sepTermAbeja" style="width:1px;height:18px;background:var(--border2);margin:0 4px;display:none"></span>
+          <select class="filter-select" id="filterTermAbeja" onchange="renderTerminosView()" style="display:none"><option value="">Todas las abejas</option></select>
           <span style="width:1px;height:18px;background:var(--border2);margin:0 4px"></span>
           <label style="font-size:11px;color:var(--text3);font-weight:500">Desde</label>
           <input type="date" id="filterTermFechaDesde" class="filter-select" style="padding:4px 8px;font-size:12px" onchange="renderTerminosView()">
@@ -1385,6 +1387,7 @@ async function applyTerminoScore(lead, termino, terminoTipo) {
   const isPos = POSITIVOS.includes(termino.toUpperCase());
   const st = getScore(lead);
   st.score = isPos ? 100 : 0;
+  st.termino = termino;
   if (terminoTipo) st.terminoTipo = terminoTipo;
   const dot = isPos ? 'g' : 'f';
   const txt = isPos ? '✅ ' + (terminoTipo || termino) : '❌ ' + termino;
@@ -1405,6 +1408,7 @@ async function saveScoreToFirebase(key, st) {
   try {
     const safeScore = Number.isFinite(Number(st.score)) ? Number(st.score) : 0;
     const doc = { score: safeScore, hist: (st.hist||[]).slice(0,20), updatedAt: new Date().toISOString() };
+    if (st.termino)        doc.termino        = st.termino;
     if (st.terminoTipo)    doc.terminoTipo    = st.terminoTipo;
     if (st.pagoEstado)     doc.pagoEstado     = st.pagoEstado;
     if (st.pagoFechaVerif) doc.pagoFechaVerif = st.pagoFechaVerif;
@@ -1426,13 +1430,14 @@ async function loadAllTerminoTipos() {
     snap.forEach(doc => {
       const d = doc.data();
       map[doc.id] = {
-        terminoTipo: d.terminoTipo||'', pagoEstado: d.pagoEstado||'',
-        pagoFechaVerif: d.pagoFechaVerif||'', comprobante: d.comprobante||'', fila: d.fila
+        score: d.score, termino: d.termino||'', terminoTipo: d.terminoTipo||'', pagoEstado: d.pagoEstado||'',
+        pagoFechaVerif: d.pagoFechaVerif||'', comprobante: d.comprobante||'', fila: d.fila, hist: d.hist||[]
       };
     });
     ALL_LEADS.forEach(l => {
       const key = scoreKey(l.correo);
       if (map[key]) {
+        if (map[key].termino && !l.termino) l.termino = map[key].termino;
         if (map[key].terminoTipo)    l.terminoTipo    = map[key].terminoTipo;
         if (map[key].pagoEstado)     l.pagoEstado     = map[key].pagoEstado;
         if (map[key].pagoFechaVerif) l.pagoFechaVerif = map[key].pagoFechaVerif;
@@ -1464,10 +1469,9 @@ async function saveComisionesDB() {
 async function loadScoreForLead(lead) {
   if (!_fbDB) return;
   const key = scoreKey(lead.correo);
-  if (SCORES[key]) return; // ya cargado
   try {
     const doc = await _fbDB.collection('rb_scores').doc(key).get();
-    if (doc.exists) SCORES[key] = doc.data();
+    if (doc.exists) SCORES[key] = { ...(SCORES[key]||{}), ...doc.data() };
   } catch(e) { console.warn('loadScoreForLead error:', e); }
 }
 
@@ -1547,10 +1551,20 @@ async function doLogin() {
     rb.className   = 'role-badge '+SESSION.rol;
     if (SESSION.rol==='admin') {
       document.getElementById('filterAbeja').style.display='';
+      document.getElementById('filterTermAbeja').style.display='';
+      document.getElementById('sepTermAbeja').style.display='';
+      document.getElementById('bulkSep').style.display='';
+      document.getElementById('bulkAbeja').style.display='';
+      document.getElementById('bulkApply').style.display='';
     } else {
       document.getElementById('adminSideDiv').style.display='none';
       document.getElementById('adminSideSection').style.display='none';
       document.getElementById('filterAbeja').style.display='none';
+      document.getElementById('filterTermAbeja').style.display='none';
+      document.getElementById('sepTermAbeja').style.display='none';
+      document.getElementById('bulkSep').style.display='none';
+      document.getElementById('bulkAbeja').style.display='none';
+      document.getElementById('bulkApply').style.display='none';
     }
     btn.disabled=false; btn.textContent='Ingresar a RenovaBase';
     // Cargar usuarios PRIMERO (await) para que los dropdowns ya los tengan disponibles
@@ -1582,12 +1596,22 @@ function startApp() {
   rb.className    = 'role-badge '+SESSION.rol;
   if (SESSION.rol==='admin') {
     document.getElementById('filterAbeja').style.display='';
+    document.getElementById('filterTermAbeja').style.display='';
+    document.getElementById('sepTermAbeja').style.display='';
     document.getElementById('chipPendientes').style.display='';
     document.getElementById('comisionesBox').style.display='';
+    document.getElementById('bulkSep').style.display='';
+    document.getElementById('bulkAbeja').style.display='';
+    document.getElementById('bulkApply').style.display='';
   } else {
     document.getElementById('adminSideDiv').style.display='none';
     document.getElementById('adminSideSection').style.display='none';
     document.getElementById('filterAbeja').style.display='none';
+    document.getElementById('filterTermAbeja').style.display='none';
+    document.getElementById('sepTermAbeja').style.display='none';
+    document.getElementById('bulkSep').style.display='none';
+    document.getElementById('bulkAbeja').style.display='none';
+    document.getElementById('bulkApply').style.display='none';
   }
   // Cargar usuarios y leads en paralelo, pero poblar filtros cuando ambos estén listos
   Promise.all([
@@ -1770,6 +1794,9 @@ function applyFilters(resetPage=true){
   // Si hay múltiples palabras, todas deben coincidir
   const searchTerms = search ? search.split(/\s+/).filter(Boolean) : [];
   FILTERED=ALL_LEADS.filter(l=>{
+    if(l.termino) return false;
+    const _sc = SCORES[scoreKey(l.correo)];
+    if(_sc && (_sc.score === 100 || _sc.score === 0)) return false;
     if(ACTIVE_CHIP!=='todos'&&l.estadoVigencia!==ACTIVE_CHIP) return false;
     if(memF&&l.membresia!==memF) return false;
     if(abF){
@@ -1936,6 +1963,32 @@ async function selectLead(fila){
   if(row)row.classList.add('selected');
   // Cargar score de Firebase solo para este lead
   await loadScoreForLead(lead);
+  // Sincronizar termino desde Firebase si el Sheet no lo tenía
+  const key = scoreKey(lead.correo);
+  const sc = SCORES[key];
+  if (sc) {
+    if (sc.termino && !lead.termino) lead.termino = sc.termino;
+    if (sc.terminoTipo && !lead.terminoTipo) lead.terminoTipo = sc.terminoTipo;
+  }
+  // Si tiene término → sacarlo de la lista
+  if (lead.termino) {
+    applyFilters(false);
+  } else if (sc) {
+    // Solo actualizar el chip de score en la fila sin re-renderizar toda la lista
+    const rowEl = document.getElementById('row-' + fila);
+    if (rowEl) {
+      const rightEl = rowEl.querySelector('.lead-right');
+      if (rightEl) {
+        const n = Number(sc.score);
+        let chip = rightEl.querySelector('.score-chip');
+        if (Number.isFinite(n) && n > 0) {
+          const cls = scoreChipCls(n);
+          if (chip) { chip.className = 'score-chip ' + cls; chip.textContent = n; }
+          else { rightEl.insertAdjacentHTML('beforeend', `<div class="score-chip ${cls}">${n}</div>`); }
+        } else if (chip) { chip.remove(); }
+      }
+    }
+  }
   openDetailPanel(lead);
 }
 
@@ -2036,6 +2089,7 @@ async function submitComprobante(fila) {
     }
 
     renderTerminosDash();
+    applyFilters(false);
     if (SESSION.rol === 'admin') populateFilters();
     const tv = document.getElementById('view-terminos');
     if (tv && tv.classList.contains('active')) renderTerminosView();
@@ -2121,6 +2175,7 @@ async function verificarPago(fila) {
   if (panelOpen) openDetailPanel(ALL_LEADS[idx]);
   renderTerminosDash();
   renderComisionesDash();
+  applyFilters(false);
   const tv = document.getElementById('view-terminos');
   if (tv && tv.classList.contains('active')) renderTerminosView();
 }
@@ -2605,6 +2660,7 @@ async function saveLead(fila){
         const tipoSub = TERMINOS_POSITIVOS.includes(terminoFinal.toUpperCase()) ? (params.terminoTipo || terminoTipoSel || '') : '';
         await applyTerminoScore(lead, terminoFinal, tipoSub);
         renderTerminosDash();
+        applyFilters(false);
       }
       // Refrescar dropdowns y vistas (por si cambió la abeja)
       if (SESSION.rol === 'admin') populateFilters();
@@ -3005,7 +3061,10 @@ function renderTerminosView() {
     if (!list) return;
 
     const motivoF = (document.getElementById('filterTermMotivo')||{}).value || '';
-    const abejaF  = (document.getElementById('filterTermAbeja')||{}).value || '';
+    // Vendores (no-admin) siempre ven solo sus propios términos
+    const abejaF  = SESSION.rol !== 'admin'
+      ? SESSION.usuario
+      : ((document.getElementById('filterTermAbeja')||{}).value || '');
     const desdeF  = (document.getElementById('filterTermFechaDesde')||{}).value || '';
     const hastaF  = (document.getElementById('filterTermFechaHasta')||{}).value || '';
 
@@ -3375,6 +3434,7 @@ async function loadLeadsSilent() {
     }
     document.getElementById('leadsList').scrollTop = scrollTop;
     loadAllTerminoTipos().then(() => {
+      applyFilters(false);
       renderTerminosDash();
       renderComisionesDash();
       const tv = document.getElementById('view-terminos');
@@ -3435,6 +3495,7 @@ async function loadLeads() {
     loadStats();
     // Cargar datos de Firebase PRIMERO, luego renderizar términos con info completa
     loadAllTerminoTipos().then(() => {
+      applyFilters(false);
       renderTerminosDash();
       renderComisionesDash();
       const tvFinal = document.getElementById('view-terminos');
