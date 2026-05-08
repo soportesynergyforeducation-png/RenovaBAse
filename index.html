@@ -2222,7 +2222,7 @@ function openDetailPanel(l) {
         <!-- SCORE BAR -->
         ${(()=>{
           const sc=getScore(l);
-          const pct=sc.score;
+          const pct=Number.isFinite(Number(sc.score)) ? Number(sc.score) : calcInitialScore(l);
           const col=scoreColor(pct);
           return '<div class="rp-score-row">'
             +'<div class="rp-score-num" style="color:'+col+'">'+pct+'</div>'
@@ -2599,10 +2599,11 @@ async function saveLead(fila){
           ALL_LEADS[idx].fechaTerminoFmt = '';
         }
       }
-      // Si se guardó un término, actualizar score y dashboard
-      if(params.termino) {
-        const tipoSub = TERMINOS_POSITIVOS.includes(params.termino.toUpperCase()) ? (params.terminoTipo||'') : '';
-        await applyTerminoScore(lead, params.termino, tipoSub);
+      // Aplicar score para CUALQUIER término (incluye UPGRADE/EXTENCION que no van al Sheet)
+      const terminoFinal = params.termino || terminoSel;
+      if (terminoFinal) {
+        const tipoSub = TERMINOS_POSITIVOS.includes(terminoFinal.toUpperCase()) ? (params.terminoTipo || terminoTipoSel || '') : '';
+        await applyTerminoScore(lead, terminoFinal, tipoSub);
         renderTerminosDash();
       }
       // Refrescar dropdowns y vistas (por si cambió la abeja)
