@@ -3223,23 +3223,24 @@ function _buildTerminosDashboard(abejaF, desde, hasta, desdeF, hastaF) {
       </div>`;
     }).join('');
 
-  const totalRow = SESSION && SESSION.rol==='admin' ? `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:2px solid var(--border);margin-top:4px">
+  const totalBar = SESSION && SESSION.rol==='admin' ? `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;background:var(--surface2);border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
       <span style="font-size:12px;font-weight:700;color:var(--text2)">TOTAL COMISIONES</span>
-      <span style="font-size:15px;font-weight:700;color:var(--go)">${fmt$(totalComisionGlobal)}</span>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:18px;font-weight:800;color:var(--go)">${fmt$(totalComisionGlobal)}</span>
+        ${totalVerif ? `<button class="btn-sm" onclick="exportComisionesCSV()">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exportar CSV
+        </button>` : ''}
+      </div>
     </div>` : '';
-
-  const csvBtn = SESSION && SESSION.rol==='admin' && totalVerif ? `
-    <button class="btn-sm" style="margin-top:8px" onclick="exportComisionesCSV()">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Exportar reporte CSV
-    </button>` : '';
 
   return `
     ${resumenCards}
+    ${totalBar}
     <div style="padding:16px">
       <div class="dash-section-title" style="margin-top:4px">Por abeja</div>
-      ${Object.keys(abejaMap).length ? vendorRows + totalRow + csvBtn
+      ${Object.keys(abejaMap).length ? vendorRows
         : '<div style="font-size:12px;color:var(--text3);padding:8px 0">Sin datos en este periodo</div>'}
     </div>`;
 }
