@@ -1948,9 +1948,19 @@ async function submitComprobante(fila) {
   const btn = document.getElementById('btnEnviarComp');
   if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
   try {
-    // Solo guardamos los campos sin validación estricta en el Sheet.
-    // termino/terminoTipo/estado NO se envían aquí — deben guardarse con "Guardar cambios".
     const fv = id => (document.getElementById(id)?.value || '').trim();
+
+    // Leer TODOS los campos del panel (para actualizar ALL_LEADS y no perder nada al re-renderizar)
+    const terminoSel    = fv('dp_termino')      || lead.termino     || '';
+    const terminoTipoSel = fv('dp_termino_tipo') || lead.terminoTipo || '';
+    const estadoSel     = fv('dp_estado')       || lead.estado      || '';
+
+    const TERMINOS_SHEET = ['RENOVACION','UPGRADE','EXTENCION','NO INTERESADO',
+      'FALTA DE ATENCION DE SOPORTE','FALTA DE ATENCION DE ASESOR',
+      'NO ERA LO QUE BUSCABA','NO LO USO','ECONOMICO','NO CONTACTAR','REEMBOLSO'];
+    const ESTADOS_SHEET  = ['COTACTADO','# INVALIDO','PENDIENTE','NO CONTACTAR'];
+
+    // API: solo campos sin validación estricta + termino/estado si son valores permitidos
     const params = {
       action:           'updateLead',
       correo:           lead.correo   || '',
@@ -1961,13 +1971,25 @@ async function submitComprobante(fila) {
       notas:            fv('dp_notas')       || lead.notas       || '',
       comprobante:      url
     };
+    if (TERMINOS_SHEET.includes(terminoSel))  params.termino     = terminoSel;
+    if (terminoTipoSel)                        params.terminoTipo = terminoTipoSel;
+    if (ESTADOS_SHEET.includes(estadoSel))    params.estado      = estadoSel;
+
     const res = await apiGet(params);
     if (!res.ok) { showToast('Error al guardar: ' + res.error, true); if (btn) { btn.disabled = false; btn.textContent = 'Enviar comprobante'; } return; }
 
-    // Actualizar ALL_LEADS con todos los campos guardados
-    const { action, correo, telefonoBusqueda, ...campos } = params;
-    Object.assign(ALL_LEADS[idx], campos);
-    if (params.termino) {
+    // Actualizar ALL_LEADS con TODOS los valores del formulario (incluyendo termino)
+    // para que openDetailPanel re-renderice sin perder ningún cambio
+    ALL_LEADS[idx].evento      = params.evento;
+    ALL_LEADS[idx].membresia   = params.membresia;
+    ALL_LEADS[idx].vencimiento = params.vencimiento;
+    ALL_LEADS[idx].notas       = params.notas;
+    ALL_LEADS[idx].comprobante = url;
+    if (terminoSel)     ALL_LEADS[idx].termino     = terminoSel;
+    if (terminoTipoSel) ALL_LEADS[idx].terminoTipo = terminoTipoSel;
+
+    // Si hay término positivo, actualizar fechaTermino y aplicar score
+    if (terminoSel && TERMINOS_POSITIVOS.includes(terminoSel.toUpperCase())) {
       const ahora = new Date();
       const dd = String(ahora.getDate()).padStart(2,'0');
       const mm = String(ahora.getMonth()+1).padStart(2,'0');
@@ -1976,11 +1998,7 @@ async function submitComprobante(fila) {
       const mi = String(ahora.getMinutes()).padStart(2,'0');
       ALL_LEADS[idx].fechaTermino    = ahora.toISOString();
       ALL_LEADS[idx].fechaTerminoFmt = `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
-    }
-
-    // Si se guardó un término positivo, aplicar score
-    if (params.termino && TERMINOS_POSITIVOS.includes(params.termino.toUpperCase())) {
-      await applyTerminoScore(ALL_LEADS[idx], params.termino, params.terminoTipo || '');
+      await applyTerminoScore(ALL_LEADS[idx], terminoSel, terminoTipoSel || '');
     }
 
     // Guardar pagoEstado en Firebase
@@ -1989,20 +2007,20 @@ async function submitComprobante(fila) {
     st.pagoEstado  = 'pendiente';
     st.comprobante = url;
     st.fila        = fila;
-    if (params.terminoTipo) st.terminoTipo = params.terminoTipo;
+    if (terminoTipoSel) st.terminoTipo = terminoTipoSel;
     SCORES[key] = st;
     await saveScoreToFirebase(key, st);
     ALL_LEADS[idx].pagoEstado = 'pendiente';
 
-    // Escribir en rb_pendientes/estado (doc único compartido — mismo patrón que LeadRadar)
+    // Escribir en rb_pendientes/estado
     if (_fbDB) {
       const pendEntry = {
         fila:        fila,
-        correo:      lead.correo         || '',
-        nombre:      lead.nombre         || '',
-        abeja:       ALL_LEADS[idx].abeja || lead.abeja || '',
-        termino:     params.termino       || lead.termino || '',
-        terminoTipo: params.terminoTipo   || '',
+        correo:      lead.correo              || '',
+        nombre:      lead.nombre              || '',
+        abeja:       ALL_LEADS[idx].abeja     || lead.abeja || '',
+        termino:     terminoSel               || '',
+        terminoTipo: terminoTipoSel           || '',
         comprobante: url,
         estado:      'pendiente',
         ts:          new Date().toISOString()
