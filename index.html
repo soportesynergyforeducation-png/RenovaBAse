@@ -868,6 +868,7 @@ async function initFirebaseRT(){
   try{
     await loadFBScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
     await loadFBScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js');
+    await loadFBScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js');
     if(!firebase.apps.length){
       firebase.initializeApp({
         apiKey:"AIzaSyAs6EL1WjhGtVjgow-UP35ZV5fGZDLCn1g",
@@ -877,6 +878,14 @@ async function initFirebaseRT(){
         messagingSenderId:"1026667056881",
         appId:"1:1026667056881:web:ff9343206dacb2e6602350"
       });
+    }
+    // Autenticación anónima para que los writes pasen las reglas de seguridad de Firestore
+    try {
+      if (!firebase.auth().currentUser) {
+        await firebase.auth().signInAnonymously();
+      }
+    } catch(authErr) {
+      console.warn('Firebase anon auth failed (rules may block writes):', authErr);
     }
     _fbDB=firebase.firestore();
     // Cargar comisiones una vez que Firebase está listo
@@ -1955,7 +1964,11 @@ async function submitComprobante(fila) {
       };
       _fbDB.collection('rb_pendientes').doc('estado')
         .set({ [fila]: pendEntry }, { merge: true })
-        .catch(e => console.warn('rb_pendientes write error:', e));
+        .then(() => console.log('rb_pendientes write OK, fila:', fila))
+        .catch(e => {
+          console.error('rb_pendientes write FAILED:', e);
+          showToast('Error Firebase: ' + (e.code || e.message), true);
+        });
     }
     showToast('Comprobante enviado ✓');
     openDetailPanel(ALL_LEADS[idx]);
