@@ -903,11 +903,11 @@ async function initFirebaseRT(){
         if(tv && tv.classList.contains('active') && ACTIVE_TERM_CHIP === 'pendiente') renderTerminosView();
       }, function(err){ console.warn('rb_pendientes RT error:', err); });
 
-    // Listener en rb_scores para mantener terminoTipo / pagoFechaVerif sincronizados
+    // Listener en rb_scores — fuente principal de verdad para pagoEstado y PENDIENTES_MAP
     var scoresFirstLoad = true;
     _fbDB.collection('rb_scores').onSnapshot(function(snap){
       if(scoresFirstLoad){ scoresFirstLoad=false; return; }
-      var changed = false;
+      var pendientesChanged = false;
       snap.docChanges().forEach(function(change){
         if(change.type==='removed') return;
         var d = change.doc.data();
@@ -918,16 +918,42 @@ async function initFirebaseRT(){
         if(lead){
           if(d.terminoTipo)    lead.terminoTipo    = d.terminoTipo;
           if(d.pagoFechaVerif) lead.pagoFechaVerif = d.pagoFechaVerif;
-          if(d.pagoEstado === 'verificado') lead.pagoEstado = 'verificado';
-          changed = true;
+          if(d.comprobante)    lead.comprobante    = d.comprobante;
+          if(d.fila != null)   lead.fila           = d.fila;
+
+          var filaKey = d.fila != null ? d.fila : lead.fila;
+          if(d.pagoEstado === 'pendiente'){
+            lead.pagoEstado = 'pendiente';
+            PENDIENTES_MAP[filaKey] = {
+              fila: filaKey,
+              correo: lead.correo || '',
+              nombre: lead.nombre || '',
+              abeja: lead.abeja || '',
+              termino: lead.termino || '',
+              terminoTipo: lead.terminoTipo || d.terminoTipo || '',
+              comprobante: d.comprobante || lead.comprobante || '',
+              estado: 'pendiente'
+            };
+            pendientesChanged = true;
+          } else if(d.pagoEstado === 'verificado'){
+            lead.pagoEstado = 'verificado';
+            delete PENDIENTES_MAP[filaKey];
+            pendientesChanged = true;
+          }
         }
       });
-      if(changed){
-        renderTerminosDash();
-        renderComisionesDash();
-        var tv = document.getElementById('view-terminos');
-        if(tv && tv.classList.contains('active')) renderTerminosView();
+      if(pendientesChanged){
+        var count = Object.keys(PENDIENTES_MAP).length;
+        var chip = document.getElementById('chipPendientes');
+        if(chip){
+          chip.innerHTML = '⏳ Pendientes por verificar'
+            + (count > 0 ? ' <span style="background:var(--warn);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;margin-left:4px">'+count+'</span>' : '');
+        }
       }
+      renderTerminosDash();
+      renderComisionesDash();
+      var tv = document.getElementById('view-terminos');
+      if(tv && tv.classList.contains('active')) renderTerminosView();
     }, function(err){ console.warn('rb_scores RT error:', err); });
 
   }catch(e){console.warn('Firebase RT error:',e);}
@@ -1383,6 +1409,8 @@ async function saveScoreToFirebase(key, st) {
     if (st.terminoTipo)    doc.terminoTipo    = st.terminoTipo;
     if (st.pagoEstado)     doc.pagoEstado     = st.pagoEstado;
     if (st.pagoFechaVerif) doc.pagoFechaVerif = st.pagoFechaVerif;
+    if (st.comprobante)    doc.comprobante    = st.comprobante;
+    if (st.fila != null)   doc.fila           = st.fila;
     await _fbDB.collection('rb_scores').doc(key).set(doc, { merge: true });
   } catch(e) { console.warn('saveScore error:', e); }
 }
@@ -1398,7 +1426,10 @@ async function loadAllTerminoTipos() {
     const map = {};
     snap.forEach(doc => {
       const d = doc.data();
-      map[doc.id] = { terminoTipo: d.terminoTipo||'', pagoEstado: d.pagoEstado||'', pagoFechaVerif: d.pagoFechaVerif||'' };
+      map[doc.id] = {
+        terminoTipo: d.terminoTipo||'', pagoEstado: d.pagoEstado||'',
+        pagoFechaVerif: d.pagoFechaVerif||'', comprobante: d.comprobante||'', fila: d.fila
+      };
     });
     ALL_LEADS.forEach(l => {
       const key = scoreKey(l.correo);
@@ -1406,10 +1437,27 @@ async function loadAllTerminoTipos() {
         if (map[key].terminoTipo)    l.terminoTipo    = map[key].terminoTipo;
         if (map[key].pagoEstado)     l.pagoEstado     = map[key].pagoEstado;
         if (map[key].pagoFechaVerif) l.pagoFechaVerif = map[key].pagoFechaVerif;
+        if (map[key].comprobante)    l.comprobante    = map[key].comprobante;
         if (!SCORES[key]) SCORES[key] = {};
         Object.assign(SCORES[key], map[key]);
+        // Pre-poblar PENDIENTES_MAP con los pendientes cargados al iniciar
+        if (map[key].pagoEstado === 'pendiente') {
+          const filaKey = map[key].fila != null ? map[key].fila : l.fila;
+          PENDIENTES_MAP[filaKey] = {
+            fila: filaKey, correo: l.correo||'', nombre: l.nombre||'',
+            abeja: l.abeja||'', termino: l.termino||'', terminoTipo: map[key].terminoTipo||'',
+            comprobante: map[key].comprobante||'', estado: 'pendiente'
+          };
+        }
       }
     });
+    // Actualizar badge del chip pendientes
+    const count = Object.keys(PENDIENTES_MAP).length;
+    const chip = document.getElementById('chipPendientes');
+    if (chip && count > 0) {
+      chip.innerHTML = '⏳ Pendientes por verificar'
+        + ' <span style="background:var(--warn);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;margin-left:4px">'+count+'</span>';
+    }
   } catch(e) { console.warn('loadAllTerminoTipos error:', e); }
 }
 
@@ -1919,13 +1967,15 @@ async function submitComprobante(fila) {
     await apiGet({ action:'updateLead', correo: lead.correo||'', telefonoBusqueda: lead.telefono||'', comprobante: url });
     const key = scoreKey(lead.correo);
     const st = getScore(lead);
-    st.pagoEstado = 'pendiente';
+    st.pagoEstado  = 'pendiente';
+    st.comprobante = url;
+    st.fila        = fila;
     if (lead.terminoTipo) st.terminoTipo = lead.terminoTipo;
     SCORES[key] = st;
-    await saveScoreToFirebase(key, st);
+    await saveScoreToFirebase(key, st);  // guarda comprobante + fila + pagoEstado en rb_scores
     ALL_LEADS[idx].comprobante = url;
-    ALL_LEADS[idx].pagoEstado = 'pendiente';
-    // Escribir en rb_pendientes para propagación en tiempo real al admin
+    ALL_LEADS[idx].pagoEstado  = 'pendiente';
+    // Escribir en rb_pendientes como canal secundario
     if (_fbDB) {
       const pendDoc = {
         fila: fila,
@@ -1938,7 +1988,8 @@ async function submitComprobante(fila) {
         estado: 'pendiente',
         ts: new Date().toISOString()
       };
-      _fbDB.collection('rb_pendientes').doc(String(fila)).set(pendDoc).catch(()=>{});
+      _fbDB.collection('rb_pendientes').doc(String(fila)).set(pendDoc)
+        .catch(e => console.warn('rb_pendientes write error:', e));
     }
     showToast('Comprobante enviado ✓');
     openDetailPanel(ALL_LEADS[idx]);
