@@ -1943,25 +1943,30 @@ async function submitComprobante(fila) {
   const btn = document.getElementById('btnEnviarComp');
   if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
   try {
-    // Leer todos los campos del panel para guardar el perfil completo junto con el comprobante
+    // Leer campos del panel; si el campo está vacío en el panel usa el valor existente del lead
+    // (evita enviar cadenas vacías a celdas con validación de datos en el Sheet)
+    const fv = id => document.getElementById(id)?.value ?? null;
     const params = {
       action:           'updateLead',
       correo:           lead.correo   || '',
       telefonoBusqueda: lead.telefono || '',
-      evento:           document.getElementById('dp_evento')?.value    || '',
-      membresia:        document.getElementById('dp_membresia')?.value || '',
-      vencimiento:      document.getElementById('dp_vencimiento')?.value || '',
-      abeja:            document.getElementById('dp_abeja')?.value     || '',
-      com1:             document.getElementById('dp_com1')?.value      || '',
-      com2:             document.getElementById('dp_com2')?.value      || '',
-      com3:             document.getElementById('dp_com3')?.value      || '',
-      com4:             document.getElementById('dp_com4')?.value      || '',
-      estado:           document.getElementById('dp_estado')?.value    || '',
-      termino:          document.getElementById('dp_termino')?.value   || '',
-      terminoTipo:      document.getElementById('dp_termino_tipo')?.value || '',
-      notas:            document.getElementById('dp_notas')?.value     || '',
+      evento:           fv('dp_evento')       ?? lead.evento      ?? '',
+      membresia:        fv('dp_membresia')    ?? lead.membresia   ?? '',
+      vencimiento:      fv('dp_vencimiento')  ?? lead.vencimiento ?? '',
+      abeja:            fv('dp_abeja')        ?? lead.abeja       ?? '',
+      com1:             fv('dp_com1')         ?? lead.com1        ?? '',
+      com2:             fv('dp_com2')         ?? lead.com2        ?? '',
+      com3:             fv('dp_com3')         ?? lead.com3        ?? '',
+      com4:             fv('dp_com4')         ?? lead.com4        ?? '',
+      estado:           fv('dp_estado')       ?? lead.estado      ?? '',
+      termino:          fv('dp_termino')      || lead.termino     || '',
+      terminoTipo:      fv('dp_termino_tipo') || lead.terminoTipo || '',
+      notas:            fv('dp_notas')        ?? lead.notas       ?? '',
       comprobante:      url
     };
+    // No enviar termino vacío si el Sheet tiene validación — solo omitirlo
+    if (!params.termino) delete params.termino;
+    if (!params.terminoTipo) delete params.terminoTipo;
     const res = await apiGet(params);
     if (!res.ok) { showToast('Error al guardar: ' + res.error, true); if (btn) { btn.disabled = false; btn.textContent = 'Enviar comprobante'; } return; }
 
@@ -2524,24 +2529,28 @@ async function saveLead(fila){
   btn.disabled=true;btn.textContent='Guardando…';
   // Obtener el lead actual para enviar correo como identificador
   const lead=ALL_LEADS.find(l=>l.fila===fila)||{};
+  const fv = id => document.getElementById(id)?.value ?? null;
   const params={
     action:'updateLead',
     correo:          lead.correo||'',
     telefonoBusqueda:lead.telefono||'',
-    evento:          document.getElementById('dp_evento')?.value||'',
-    membresia:       document.getElementById('dp_membresia')?.value||'',
-    vencimiento:     document.getElementById('dp_vencimiento')?.value||'',
-    abeja:           document.getElementById('dp_abeja')?.value||'',
-    com1:            document.getElementById('dp_com1')?.value||'',
-    com2:            document.getElementById('dp_com2')?.value||'',
-    com3:            document.getElementById('dp_com3')?.value||'',
-    com4:            document.getElementById('dp_com4')?.value||'',
-    estado:          document.getElementById('dp_estado')?.value||'',
-    termino:         document.getElementById('dp_termino')?.value||'',
-    terminoTipo:     document.getElementById('dp_termino_tipo')?.value||'',
-    notas:           document.getElementById('dp_notas')?.value||'',
-    comprobante:     document.getElementById('dp_comprobante')?.value||''
+    evento:          fv('dp_evento')       ?? lead.evento      ?? '',
+    membresia:       fv('dp_membresia')    ?? lead.membresia   ?? '',
+    vencimiento:     fv('dp_vencimiento')  ?? lead.vencimiento ?? '',
+    abeja:           fv('dp_abeja')        ?? lead.abeja       ?? '',
+    com1:            fv('dp_com1')         ?? lead.com1        ?? '',
+    com2:            fv('dp_com2')         ?? lead.com2        ?? '',
+    com3:            fv('dp_com3')         ?? lead.com3        ?? '',
+    com4:            fv('dp_com4')         ?? lead.com4        ?? '',
+    estado:          fv('dp_estado')       ?? lead.estado      ?? '',
+    termino:         fv('dp_termino')      || lead.termino     || '',
+    terminoTipo:     fv('dp_termino_tipo') || lead.terminoTipo || '',
+    notas:           fv('dp_notas')        ?? lead.notas       ?? '',
+    comprobante:     fv('dp_comprobante')  ?? lead.comprobante ?? ''
   };
+  // No enviar termino/tipo vacíos a celdas con validación de datos
+  if (!params.termino) delete params.termino;
+  if (!params.terminoTipo) delete params.terminoTipo;
   try {
     const res=await apiGet(params);
     if(res.ok){
