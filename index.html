@@ -1937,30 +1937,70 @@ async function submitComprobante(fila) {
   const btn = document.getElementById('btnEnviarComp');
   if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
   try {
-    await apiGet({ action:'updateLead', correo: lead.correo||'', telefonoBusqueda: lead.telefono||'', comprobante: url });
+    // Leer todos los campos del panel para guardar el perfil completo junto con el comprobante
+    const params = {
+      action:           'updateLead',
+      correo:           lead.correo   || '',
+      telefonoBusqueda: lead.telefono || '',
+      evento:           document.getElementById('dp_evento')?.value    || '',
+      membresia:        document.getElementById('dp_membresia')?.value || '',
+      vencimiento:      document.getElementById('dp_vencimiento')?.value || '',
+      abeja:            document.getElementById('dp_abeja')?.value     || '',
+      com1:             document.getElementById('dp_com1')?.value      || '',
+      com2:             document.getElementById('dp_com2')?.value      || '',
+      com3:             document.getElementById('dp_com3')?.value      || '',
+      com4:             document.getElementById('dp_com4')?.value      || '',
+      estado:           document.getElementById('dp_estado')?.value    || '',
+      termino:          document.getElementById('dp_termino')?.value   || '',
+      terminoTipo:      document.getElementById('dp_termino_tipo')?.value || '',
+      notas:            document.getElementById('dp_notas')?.value     || '',
+      comprobante:      url
+    };
+    const res = await apiGet(params);
+    if (!res.ok) { showToast('Error al guardar: ' + res.error, true); if (btn) { btn.disabled = false; btn.textContent = 'Enviar comprobante'; } return; }
+
+    // Actualizar ALL_LEADS con todos los campos guardados
+    const { action, correo, telefonoBusqueda, ...campos } = params;
+    Object.assign(ALL_LEADS[idx], campos);
+    if (params.termino) {
+      const ahora = new Date();
+      const dd = String(ahora.getDate()).padStart(2,'0');
+      const mm = String(ahora.getMonth()+1).padStart(2,'0');
+      const yyyy = ahora.getFullYear();
+      const hh = String(ahora.getHours()).padStart(2,'0');
+      const mi = String(ahora.getMinutes()).padStart(2,'0');
+      ALL_LEADS[idx].fechaTermino    = ahora.toISOString();
+      ALL_LEADS[idx].fechaTerminoFmt = `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+    }
+
+    // Si se guardó un término positivo, aplicar score
+    if (params.termino && TERMINOS_POSITIVOS.includes(params.termino.toUpperCase())) {
+      await applyTerminoScore(ALL_LEADS[idx], params.termino, params.terminoTipo || '');
+    }
+
+    // Guardar pagoEstado en Firebase
     const key = scoreKey(lead.correo);
-    const st = getScore(lead);
+    const st = getScore(ALL_LEADS[idx]);
     st.pagoEstado  = 'pendiente';
     st.comprobante = url;
     st.fila        = fila;
-    if (lead.terminoTipo) st.terminoTipo = lead.terminoTipo;
+    if (params.terminoTipo) st.terminoTipo = params.terminoTipo;
     SCORES[key] = st;
-    await saveScoreToFirebase(key, st);  // guarda comprobante + fila + pagoEstado en rb_scores
-    ALL_LEADS[idx].comprobante = url;
-    ALL_LEADS[idx].pagoEstado  = 'pendiente';
-    // Escribir en rb_pendientes/estado — un único doc compartido (igual que LeadRadar)
-    // set con merge:true actualiza solo esta fila sin borrar las demás
+    await saveScoreToFirebase(key, st);
+    ALL_LEADS[idx].pagoEstado = 'pendiente';
+
+    // Escribir en rb_pendientes/estado (doc único compartido — mismo patrón que LeadRadar)
     if (_fbDB) {
       const pendEntry = {
-        fila: fila,
-        correo: lead.correo || '',
-        nombre: lead.nombre || '',
-        abeja: lead.abeja || '',
-        termino: lead.termino || '',
-        terminoTipo: lead.terminoTipo || '',
+        fila:        fila,
+        correo:      lead.correo         || '',
+        nombre:      lead.nombre         || '',
+        abeja:       ALL_LEADS[idx].abeja || lead.abeja || '',
+        termino:     params.termino       || lead.termino || '',
+        terminoTipo: params.terminoTipo   || '',
         comprobante: url,
-        estado: 'pendiente',
-        ts: new Date().toISOString()
+        estado:      'pendiente',
+        ts:          new Date().toISOString()
       };
       _fbDB.collection('rb_pendientes').doc('estado')
         .set({ [fila]: pendEntry }, { merge: true })
@@ -1970,6 +2010,11 @@ async function submitComprobante(fila) {
           showToast('Error Firebase: ' + (e.code || e.message), true);
         });
     }
+
+    renderTerminosDash();
+    if (SESSION.rol === 'admin') populateFilters();
+    const tv = document.getElementById('view-terminos');
+    if (tv && tv.classList.contains('active')) renderTerminosView();
     showToast('Comprobante enviado ✓');
     openDetailPanel(ALL_LEADS[idx]);
   } catch(e) { showToast('Error al enviar', true); if (btn) { btn.disabled = false; btn.textContent = 'Enviar comprobante'; } }
