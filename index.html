@@ -911,7 +911,13 @@ async function initFirebaseRT(){
         }
         ALL_LEADS.forEach(function(lead){
           var entry = PENDIENTES_MAP[lead.fila];
-          if(entry){ lead.pagoEstado = 'pendiente'; lead.comprobante = entry.comprobante || lead.comprobante; }
+          if(entry){
+            lead.pagoEstado  = 'pendiente';
+            lead.comprobante = entry.comprobante || lead.comprobante;
+            // Sincronizar termino/tipo que el vendedor guardó — el admin puede no tenerlos aún
+            if(entry.termino)     lead.termino     = entry.termino;
+            if(entry.terminoTipo) lead.terminoTipo = entry.terminoTipo;
+          }
         });
         var tv = document.getElementById('view-terminos');
         if(tv && tv.classList.contains('active')) renderTerminosView();
@@ -2023,22 +2029,78 @@ async function submitComprobante(fila) {
 async function verificarPago(fila) {
   const idx = ALL_LEADS.findIndex(l => l.fila === fila);
   if (idx < 0) return;
+
+  // 1. Sincronizar termino/tipo desde PENDIENTES_MAP si el admin no los tiene en ALL_LEADS
+  const pendEntry = PENDIENTES_MAP[fila] || PENDIENTES_MAP[String(fila)]
+    || Object.values(PENDIENTES_MAP).find(p => p.fila === fila || p.fila === String(fila));
+  if (pendEntry) {
+    if (pendEntry.termino     && !ALL_LEADS[idx].termino)     ALL_LEADS[idx].termino     = pendEntry.termino;
+    if (pendEntry.terminoTipo && !ALL_LEADS[idx].terminoTipo) ALL_LEADS[idx].terminoTipo = pendEntry.terminoTipo;
+    if (pendEntry.comprobante && !ALL_LEADS[idx].comprobante) ALL_LEADS[idx].comprobante = pendEntry.comprobante;
+  }
+
+  // 2. Si el panel de detalle está abierto para este lead, guardar todos los campos editables primero
+  const panelOpen = document.getElementById('dp_termino') !== null && SELECTED_ROW === fila;
+  if (panelOpen) {
+    const params = {
+      action:           'updateLead',
+      correo:           ALL_LEADS[idx].correo   || '',
+      telefonoBusqueda: ALL_LEADS[idx].telefono || '',
+      evento:           document.getElementById('dp_evento')?.value     || '',
+      membresia:        document.getElementById('dp_membresia')?.value  || '',
+      vencimiento:      document.getElementById('dp_vencimiento')?.value || '',
+      abeja:            document.getElementById('dp_abeja')?.value      || '',
+      com1:             document.getElementById('dp_com1')?.value       || '',
+      com2:             document.getElementById('dp_com2')?.value       || '',
+      com3:             document.getElementById('dp_com3')?.value       || '',
+      com4:             document.getElementById('dp_com4')?.value       || '',
+      estado:           document.getElementById('dp_estado')?.value     || '',
+      termino:          document.getElementById('dp_termino')?.value    || '',
+      terminoTipo:      document.getElementById('dp_termino_tipo')?.value || '',
+      notas:            document.getElementById('dp_notas')?.value      || '',
+    };
+    try {
+      const res = await apiGet(params);
+      if (res.ok) {
+        const { action, correo, telefonoBusqueda, ...campos } = params;
+        Object.assign(ALL_LEADS[idx], campos);
+      }
+    } catch(e) { console.warn('verificarPago: save profile error', e); }
+  }
+
+  // 3. Verificar el pago
   const lead = ALL_LEADS[idx];
   const key = scoreKey(lead.correo);
   const st = getScore(lead);
-  st.pagoEstado = 'verificado';
+  st.pagoEstado    = 'verificado';
   st.pagoFechaVerif = new Date().toISOString();
   if (lead.terminoTipo) st.terminoTipo = lead.terminoTipo;
   SCORES[key] = st;
   await saveScoreToFirebase(key, st);
-  ALL_LEADS[idx].pagoEstado = 'verificado';
+  ALL_LEADS[idx].pagoEstado    = 'verificado';
   ALL_LEADS[idx].pagoFechaVerif = st.pagoFechaVerif;
-  // Marcar verificado en rb_pendientes/estado → el onSnapshot lo retira de PENDIENTES_MAP en todos los clientes
+
+  // Aplicar score de término si no se ha aplicado aún
+  if (lead.termino && TERMINOS_POSITIVOS.includes(lead.termino.toUpperCase())) {
+    await applyTerminoScore(ALL_LEADS[idx], lead.termino, lead.terminoTipo || '');
+    if (!ALL_LEADS[idx].fechaTerminoFmt) {
+      const ahora = new Date();
+      const dd = String(ahora.getDate()).padStart(2,'0');
+      const mm = String(ahora.getMonth()+1).padStart(2,'0');
+      const hh = String(ahora.getHours()).padStart(2,'0');
+      const mi = String(ahora.getMinutes()).padStart(2,'0');
+      ALL_LEADS[idx].fechaTermino    = ahora.toISOString();
+      ALL_LEADS[idx].fechaTerminoFmt = `${dd}/${mm}/${ahora.getFullYear()} ${hh}:${mi}`;
+    }
+  }
+
+  // 4. Marcar verificado en rb_pendientes/estado → onSnapshot retira de PENDIENTES_MAP en todos los clientes
   if (_fbDB) _fbDB.collection('rb_pendientes').doc('estado')
     .set({ [fila]: { estado: 'verificado', pagoFechaVerif: st.pagoFechaVerif } }, { merge: true })
     .catch(()=>{});
+
   showToast('Pago verificado ✓');
-  openDetailPanel(ALL_LEADS[idx]);
+  if (panelOpen) openDetailPanel(ALL_LEADS[idx]);
   renderTerminosDash();
   renderComisionesDash();
   const tv = document.getElementById('view-terminos');
