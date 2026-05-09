@@ -963,16 +963,29 @@ async function initFirebaseRT(){
       }
     }, function(err){ console.warn('rb_scores RT error:', err); });
 
-    // Listener de actualizaciones generales (cambios en Sheets que no pasan por Firebase)
+    // Listener de actualizaciones generales — aplica campos al instante y recarga Sheets como respaldo
     var updatesFirstLoad = true;
     var updatesDebounce  = null;
     _fbDB.collection('rb_updates').doc('last').onSnapshot(function(snap){
       if(updatesFirstLoad){ updatesFirstLoad=false; return; }
       if(!snap.exists) return;
+      var d = snap.data() || {};
+      // Aplicar campos de Sheets inmediatamente si vienen en el ping
+      if(d.fila && d.campos && ALL_LEADS.length > 0){
+        var lead = ALL_LEADS.find(function(l){ return l.fila === d.fila; });
+        if(lead){
+          Object.assign(lead, d.campos);
+          applyFilters(false);
+          var tv = document.getElementById('view-terminos');
+          if(tv && tv.classList.contains('active')) renderTerminosView();
+          refreshOpenPanel();
+        }
+      }
+      // Recarga completa desde Sheets como red de seguridad (debounce largo)
       clearTimeout(updatesDebounce);
       updatesDebounce = setTimeout(function(){
         if(ALL_LEADS.length > 0) loadLeadsSilent();
-      }, 2500);
+      }, 15000);
     }, function(err){ console.warn('rb_updates RT error:', err); });
 
   }catch(e){console.warn('Firebase RT error:',e);}
@@ -1529,11 +1542,14 @@ function refreshOpenPanel(){
   if(panel && panel.classList.contains('open')) openDetailPanel(lead);
 }
 
-// Notifica a todos los clientes conectados que hubo un cambio en Sheets
-function pingUpdate(){
+// Notifica a todos los clientes conectados con los campos actualizados para sync inmediato
+function pingUpdate(fila, campos){
   try{
-    if(_fbDB) _fbDB.collection('rb_updates').doc('last')
-      .set({ts: Date.now(), by: (SESSION&&SESSION.usuario)||'?'});
+    if(!_fbDB) return;
+    var doc = {ts: Date.now(), by: (SESSION&&SESSION.usuario)||'?'};
+    if(fila)   doc.fila   = fila;
+    if(campos) doc.campos = campos;
+    _fbDB.collection('rb_updates').doc('last').set(doc);
   }catch(e){}
 }
 
@@ -2077,7 +2093,13 @@ async function submitComprobante(fila) {
 
     const res = await apiGet(params);
     if (!res.ok) { showToast('Error al guardar: ' + res.error, true); if (btn) { btn.disabled = false; btn.textContent = 'Enviar comprobante'; } return; }
-    pingUpdate();
+    pingUpdate(fila, {
+      evento: params.evento, membresia: params.membresia, vencimiento: params.vencimiento,
+      notas: params.notas, comprobante: url,
+      ...(params.termino     ? {termino:     params.termino}     : {}),
+      ...(params.terminoTipo ? {terminoTipo: params.terminoTipo} : {}),
+      ...(params.estado      ? {estado:      params.estado}      : {})
+    });
 
     // Actualizar ALL_LEADS con TODOS los valores del formulario (incluyendo termino)
     // para que openDetailPanel re-renderice sin perder ningún cambio
@@ -2183,7 +2205,7 @@ async function verificarPago(fila) {
       if (res.ok) {
         const { action, correo, telefonoBusqueda, ...campos } = params;
         Object.assign(ALL_LEADS[idx], campos);
-        pingUpdate();
+        pingUpdate(ALL_LEADS[idx].fila, campos);
       }
     } catch(e) { console.warn('verificarPago: save profile error', e); }
   }
