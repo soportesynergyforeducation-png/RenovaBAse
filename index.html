@@ -3656,6 +3656,8 @@ async function loadLeads() {
     const totalRows = first.totalRows || first.leads.length;
     const totalPages = Math.ceil(totalRows / PAGE_SIZE_API);
     console.log('loadLeads: totalRows=' + totalRows + ', totalPages=' + totalPages + ', firstPage=' + first.leads.length);
+    // Arrancar carga de scores de Firebase en paralelo con las páginas restantes
+    const scoresPromise = loadAllTerminoTipos();
     // Mostrar inmediatamente la primera página
     populateFilters();
     applyFilters();
@@ -3689,22 +3691,20 @@ async function loadLeads() {
       } catch(e) {}
     }
     populateFilters();
+    // Esperar scores de Firebase antes del render final para evitar el flash de scores incorrectos
+    await scoresPromise;
     applyFilters(false);
     loadStats();
+    renderTerminosDash();
+    renderComisionesDash();
+    const tvFinal = document.getElementById('view-terminos');
+    if (tvFinal && tvFinal.classList.contains('active')) renderTerminosView();
     // Refresh periódico silencioso como red de seguridad (3 min)
     if (!window._autoRefreshTimer) {
       window._autoRefreshTimer = setInterval(function(){
         if(ALL_LEADS.length > 0) loadLeadsSilent();
       }, 180000);
     }
-    // Cargar datos de Firebase PRIMERO, luego renderizar términos con info completa
-    loadAllTerminoTipos().then(() => {
-      applyFilters(false);
-      renderTerminosDash();
-      renderComisionesDash();
-      const tvFinal = document.getElementById('view-terminos');
-      if (tvFinal && tvFinal.classList.contains('active')) renderTerminosView();
-    });
   } catch(e){
     document.getElementById('leadsList').innerHTML='<div class="empty-state"><div class="empty-title">Sin conexión</div><div class="empty-sub">Verifica tu internet</div></div>';
   }
