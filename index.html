@@ -1580,6 +1580,18 @@ function refreshOpenPanel(){
     ? overlay
     : (document.getElementById('detailPanel')?.classList.contains('open') ? document.getElementById('detailPanel') : null);
   if(!targetPanel) return;
+  // Preservar cambios no guardados del usuario antes de re-renderizar
+  var fv = function(id){ var el=document.getElementById(id); return el?el.value:null; };
+  if(fv('dp_estado')   !== null) lead.estado      = fv('dp_estado');
+  if(fv('dp_notas')    !== null) lead.notas        = fv('dp_notas');
+  if(fv('dp_termino')  !== null) lead.termino      = fv('dp_termino');
+  if(fv('dp_com1')     !== null) lead.com1         = fv('dp_com1');
+  if(fv('dp_com2')     !== null) lead.com2         = fv('dp_com2');
+  if(fv('dp_com3')     !== null) lead.com3         = fv('dp_com3');
+  if(fv('dp_com4')     !== null) lead.com4         = fv('dp_com4');
+  if(fv('dp_membresia')!== null) lead.membresia    = fv('dp_membresia');
+  if(fv('dp_vencimiento')!==null)lead.vencimiento  = fv('dp_vencimiento');
+  if(fv('dp_abeja')    !== null) lead.abeja        = fv('dp_abeja');
   var scrollEl = targetPanel.querySelector('.rp-scroll');
   var scrollTop = scrollEl ? scrollEl.scrollTop : 0;
   openDetailPanel(lead, overlay && overlay.classList.contains('open') ? overlay : undefined);
