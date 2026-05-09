@@ -975,7 +975,9 @@ async function initFirebaseRT(){
         applyFilters(false);
         var tv = document.getElementById('view-terminos');
         if(tv && tv.classList.contains('active')) renderTerminosView();
-        refreshOpenPanel();
+        // Si fue acción local (quick action), no re-renderizar panel — ya lo actualizó doScoreAction
+        if(window._localScoreWrite){ window._localScoreWrite = false; }
+        else { refreshOpenPanel(); }
       }
     }, function(err){ console.warn('rb_scores RT error:', err); });
 
@@ -2605,6 +2607,7 @@ function qaAction(fila, texto, dot) {
 async function doScoreAction(fila, actionKey) {
   const lead = ALL_LEADS.find(l => l.fila === fila);
   if (!lead) return;
+  window._localScoreWrite = true;
   const st = await applyScoreAction(lead, actionKey);
   if (!st) return;
   const act = SCORE_ACTIONS[actionKey];
