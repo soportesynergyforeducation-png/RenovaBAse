@@ -1576,12 +1576,15 @@ function refreshOpenPanel(){
   var lead = ALL_LEADS.find(function(l){ return l.fila===SELECTED_ROW; });
   if(!lead) return;
   var overlay = document.getElementById('terminoDetailOverlay');
-  if(overlay && overlay.classList.contains('open')){
-    openDetailPanel(lead, overlay);
-    return;
-  }
-  var panel = document.getElementById('detailPanel');
-  if(panel && panel.classList.contains('open')) openDetailPanel(lead);
+  var targetPanel = (overlay && overlay.classList.contains('open'))
+    ? overlay
+    : (document.getElementById('detailPanel')?.classList.contains('open') ? document.getElementById('detailPanel') : null);
+  if(!targetPanel) return;
+  var scrollEl = targetPanel.querySelector('.rp-scroll');
+  var scrollTop = scrollEl ? scrollEl.scrollTop : 0;
+  openDetailPanel(lead, overlay && overlay.classList.contains('open') ? overlay : undefined);
+  var scrollElAfter = targetPanel.querySelector('.rp-scroll');
+  if(scrollElAfter) scrollElAfter.scrollTop = scrollTop;
 }
 
 // Notifica a todos los clientes conectados con los campos actualizados para sync inmediato
