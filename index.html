@@ -927,6 +927,7 @@ async function initFirebaseRT(){
             if(entry.terminoTipo) lead.terminoTipo = entry.terminoTipo;
           }
         });
+        applyFilters(false);
         var tv = document.getElementById('view-terminos');
         if(tv && tv.classList.contains('active')) renderTerminosView();
       }, function(err){ console.warn('rb_pendientes RT error:', err); });
@@ -959,6 +960,18 @@ async function initFirebaseRT(){
         if(tv && tv.classList.contains('active')) renderTerminosView();
       }
     }, function(err){ console.warn('rb_scores RT error:', err); });
+
+    // Listener de actualizaciones generales (cambios en Sheets que no pasan por Firebase)
+    var updatesFirstLoad = true;
+    var updatesDebounce  = null;
+    _fbDB.collection('rb_updates').doc('last').onSnapshot(function(snap){
+      if(updatesFirstLoad){ updatesFirstLoad=false; return; }
+      if(!snap.exists) return;
+      clearTimeout(updatesDebounce);
+      updatesDebounce = setTimeout(function(){
+        if(ALL_LEADS.length > 0) loadLeadsSilent();
+      }, 2500);
+    }, function(err){ console.warn('rb_updates RT error:', err); });
 
   }catch(e){console.warn('Firebase RT error:',e);}
 }
@@ -1498,6 +1511,14 @@ async function apiGet(params) {
 // Alias: todo va por GET
 async function apiPost(params) {
   return apiGet(params);
+}
+
+// Notifica a todos los clientes conectados que hubo un cambio en Sheets
+function pingUpdate(){
+  try{
+    if(_fbDB) _fbDB.collection('rb_updates').doc('last')
+      .set({ts: Date.now(), by: (SESSION&&SESSION.usuario)||'?'});
+  }catch(e){}
 }
 
 // ══ THEME ══
@@ -2040,6 +2061,7 @@ async function submitComprobante(fila) {
 
     const res = await apiGet(params);
     if (!res.ok) { showToast('Error al guardar: ' + res.error, true); if (btn) { btn.disabled = false; btn.textContent = 'Enviar comprobante'; } return; }
+    pingUpdate();
 
     // Actualizar ALL_LEADS con TODOS los valores del formulario (incluyendo termino)
     // para que openDetailPanel re-renderice sin perder ningún cambio
@@ -2145,6 +2167,7 @@ async function verificarPago(fila) {
       if (res.ok) {
         const { action, correo, telefonoBusqueda, ...campos } = params;
         Object.assign(ALL_LEADS[idx], campos);
+        pingUpdate();
       }
     } catch(e) { console.warn('verificarPago: save profile error', e); }
   }
@@ -2580,6 +2603,7 @@ async function applyBulkAbeja() {
   try {
     const res = await apiGet({ action:'bulkAsignar', correos, telefonos, abeja });
     if (res.ok) {
+      pingUpdate();
       SELECTED_FILAS.forEach(fila => {
         const idx = ALL_LEADS.findIndex(l => l.fila === fila);
         if (idx >= 0) ALL_LEADS[idx].abeja = abeja;
@@ -3521,6 +3545,12 @@ async function loadLeads() {
     populateFilters();
     applyFilters(false);
     loadStats();
+    // Refresh periódico silencioso como red de seguridad (3 min)
+    if (!window._autoRefreshTimer) {
+      window._autoRefreshTimer = setInterval(function(){
+        if(ALL_LEADS.length > 0) loadLeadsSilent();
+      }, 180000);
+    }
     // Cargar datos de Firebase PRIMERO, luego renderizar términos con info completa
     loadAllTerminoTipos().then(() => {
       applyFilters(false);
