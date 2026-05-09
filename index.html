@@ -922,9 +922,10 @@ async function initFirebaseRT(){
           if(entry){
             lead.pagoEstado  = 'pendiente';
             lead.comprobante = entry.comprobante || lead.comprobante;
-            // Sincronizar termino/tipo que el vendedor guardó — el admin puede no tenerlos aún
-            if(entry.termino)     lead.termino     = entry.termino;
-            if(entry.terminoTipo) lead.terminoTipo = entry.terminoTipo;
+            if(entry.termino)       lead.termino   = entry.termino;
+            if(entry.terminoTipo)   lead.terminoTipo = entry.terminoTipo;
+            if(entry.estadoGestion) lead.estado    = entry.estadoGestion;
+            if(entry.notas)         lead.notas     = entry.notas;
           }
         });
         applyFilters(false);
@@ -2146,15 +2147,17 @@ async function submitComprobante(fila) {
     // Escribir en rb_pendientes/estado
     if (_fbDB) {
       const pendEntry = {
-        fila:        fila,
-        correo:      lead.correo              || '',
-        nombre:      lead.nombre              || '',
-        abeja:       ALL_LEADS[idx].abeja     || lead.abeja || '',
-        termino:     terminoSel               || '',
-        terminoTipo: terminoTipoSel           || '',
-        comprobante: url,
-        estado:      'pendiente',
-        ts:          new Date().toISOString()
+        fila:          fila,
+        correo:        lead.correo              || '',
+        nombre:        lead.nombre              || '',
+        abeja:         ALL_LEADS[idx].abeja     || lead.abeja || '',
+        termino:       terminoSel               || '',
+        terminoTipo:   terminoTipoSel           || '',
+        comprobante:   url,
+        estado:        'pendiente',
+        estadoGestion: estadoSel               || '',
+        notas:         params.notas            || '',
+        ts:            new Date().toISOString()
       };
       _fbDB.collection('rb_pendientes').doc('estado')
         .set({ [fila]: pendEntry }, { merge: true })
