@@ -3676,7 +3676,7 @@ function startLoadingPhrases() {
       el.style.opacity = '0';
       setTimeout(() => { el.textContent = frases[i]; el.style.opacity = '1'; }, 400);
     });
-  }, 2500);
+  }, 4000);
   return () => clearInterval(timer);
 }
 
