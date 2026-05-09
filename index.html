@@ -3585,6 +3585,7 @@ async function loadLeadsSilent() {
       renderComisionesDash();
       const tv = document.getElementById('view-terminos');
       if (tv && tv.classList.contains('active')) renderTerminosView();
+      refreshOpenPanel();
     });
   } catch(e) { console.warn('loadLeadsSilent error:', e); }
 }
