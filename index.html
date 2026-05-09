@@ -2402,6 +2402,7 @@ function openDetailPanel(l, panelEl) {
             ? `<span class="rp-badge" style="background:var(--accent-lo);color:var(--accent)">${esc(l.membresia)}</span>`
             : ''}
         </div>
+        <select id="dp_estado" style="margin-top:8px;width:100%;font-size:11px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text1)">${selOpts(OPT_ESTADO, l.estado)}</select>
       </div>
 
       <!-- SCROLL BODY -->
@@ -2434,23 +2435,6 @@ function openDetailPanel(l, panelEl) {
           </div>
         </div>
 
-        <!-- ESTADO Y TÉRMINO -->
-        <div class="rp-sec">
-          <div class="rp-sec-label">Estado de gestión</div>
-          <div class="dp-field">
-            <label>Estado</label>
-            <select id="dp_estado">${selOpts(OPT_ESTADO, l.estado)}</select>
-          </div>
-          <div class="dp-field" style="margin:0">
-            <label>Término</label>
-            <select id="dp_termino" onchange="onTerminoChange()">${selOpts(OPT_TERM, l.termino)}</select>
-          </div>
-          <div class="dp-field" style="margin:0;display:${TERMINOS_POSITIVOS.includes((l.termino||'').toUpperCase())?'':'none'}" id="dp_tipo_wrap">
-            <label>Tipo de término</label>
-            <select id="dp_termino_tipo">${(SUB_TERM[(l.termino||'').toUpperCase()]||[]).map(s=>`<option value="${esc(s)}" ${s===(scData.terminoTipo||'')?'selected':''}>${esc(s)}</option>`).join('')}</select>
-          </div>
-        </div>
-
         <!-- COMUNICACIONES -->
         <div class="rp-sec">
           <div class="rp-sec-label">Comunicaciones</div>
@@ -2471,6 +2455,19 @@ function openDetailPanel(l, panelEl) {
               <label>Com 4</label>
               <select id="dp_com4">${selOpts(OPT_COM, l.com4)}</select>
             </div>
+          </div>
+        </div>
+
+        <!-- TÉRMINO -->
+        <div class="rp-sec">
+          <div class="rp-sec-label">Estado de gestión</div>
+          <div class="dp-field" style="margin:0">
+            <label>Término</label>
+            <select id="dp_termino" onchange="onTerminoChange()">${selOpts(OPT_TERM, l.termino)}</select>
+          </div>
+          <div class="dp-field" style="margin:0;display:${TERMINOS_POSITIVOS.includes((l.termino||'').toUpperCase())?'':'none'}" id="dp_tipo_wrap">
+            <label>Tipo de término</label>
+            <select id="dp_termino_tipo">${(SUB_TERM[(l.termino||'').toUpperCase()]||[]).map(s=>`<option value="${esc(s)}" ${s===(scData.terminoTipo||'')?'selected':''}>${esc(s)}</option>`).join('')}</select>
           </div>
         </div>
 
