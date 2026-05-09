@@ -3527,8 +3527,34 @@ async function goToLeadDetail(fila) {
   }
   openDetailPanel(lead, overlay);
   overlay.classList.add('open');
-  // Refrescar datos del lead desde Sheets + Firebase para asegurar info completa
-  loadLeadsSilent();
+  // Refrescar campos desde Firebase (instantáneo) y re-renderizar el panel
+  loadScoreForLead(lead).then(function(){
+    const sc = SCORES[scoreKey(lead.correo)];
+    if (sc) {
+      if (sc.termino)        lead.termino        = sc.termino;
+      if (sc.terminoTipo)    lead.terminoTipo    = sc.terminoTipo;
+      if (sc.estado)         lead.estado         = sc.estado;
+      if (sc.notas)          lead.notas          = sc.notas;
+      if (sc.com1)           lead.com1           = sc.com1;
+      if (sc.com2)           lead.com2           = sc.com2;
+      if (sc.com3)           lead.com3           = sc.com3;
+      if (sc.com4)           lead.com4           = sc.com4;
+      if (sc.pagoEstado)     lead.pagoEstado     = sc.pagoEstado;
+      if (sc.comprobante)    lead.comprobante    = sc.comprobante;
+      if (sc.pagoFechaVerif) lead.pagoFechaVerif = sc.pagoFechaVerif;
+    }
+    const pEntry = PENDIENTES_MAP[lead.fila];
+    if (pEntry) {
+      if (pEntry.estadoGestion) lead.estado     = pEntry.estadoGestion;
+      if (pEntry.notas)         lead.notas      = pEntry.notas;
+      if (pEntry.com1)          lead.com1       = pEntry.com1;
+      if (pEntry.com2)          lead.com2       = pEntry.com2;
+      if (pEntry.com3)          lead.com3       = pEntry.com3;
+      if (pEntry.com4)          lead.com4       = pEntry.com4;
+      if (pEntry.comprobante)   lead.comprobante = pEntry.comprobante;
+    }
+    refreshOpenPanel();
+  });
 }
 // Cerrar modales con Escape
 document.addEventListener('keydown',e=>{
