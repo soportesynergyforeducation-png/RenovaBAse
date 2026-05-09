@@ -3642,64 +3642,42 @@ async function loadLeadsSilent() {
 }
 
 async function loadLeads() {
-  document.getElementById('leadsList').innerHTML='<div class="loading-wrap"><div class="spinner"></div><span class="loading-text">Cargando miembros…</span></div>';
+  const list = document.getElementById('leadsList');
+  list.innerHTML='<div class="loading-wrap"><div class="spinner"></div><span class="loading-text">Cargando leads…</span></div>';
   closeDetailPanel();
   try {
     const PAGE_SIZE_API = 1000;
-    // Cargar primera página
     const first = await apiGet({action:'getLeads', rol:SESSION.rol, usuario:SESSION.usuario, page:0, pageSize:PAGE_SIZE_API});
     if (!first.ok) {
-      document.getElementById('leadsList').innerHTML=`<div class="empty-state"><div class="empty-title">Error</div><div class="empty-sub">${first.error}</div></div>`;
+      list.innerHTML=`<div class="empty-state"><div class="empty-title">Error</div><div class="empty-sub">${first.error}</div></div>`;
       return;
     }
     ALL_LEADS = first.leads;
     const totalRows = first.totalRows || first.leads.length;
     const totalPages = Math.ceil(totalRows / PAGE_SIZE_API);
-    console.log('loadLeads: totalRows=' + totalRows + ', totalPages=' + totalPages + ', firstPage=' + first.leads.length);
-    // Arrancar carga de scores de Firebase en paralelo con las páginas restantes
+    // Cargar scores de Firebase y páginas restantes en paralelo
     const scoresPromise = loadAllTerminoTipos();
-    // Mostrar inmediatamente la primera página
-    populateFilters();
-    applyFilters();
-    loadStats();
-    // Mostrar indicador de carga progresiva
-    const loadIndicator = document.getElementById('leadsCount');
-    if (totalPages > 1 && loadIndicator) {
-      loadIndicator.textContent = ALL_LEADS.length + ' de ' + totalRows + ' (cargando...)';
-    }
-    // Cargar páginas restantes SECUENCIALMENTE
     for (let p = 1; p < totalPages; p++) {
+      list.innerHTML=`<div class="loading-wrap"><div class="spinner"></div><span class="loading-text">Cargando leads… ${ALL_LEADS.length} de ${totalRows}</span></div>`;
       try {
         const res = await apiGet({action:'getLeads', rol:SESSION.rol, usuario:SESSION.usuario, page:p, pageSize:PAGE_SIZE_API});
-        if (res.ok && res.leads.length) {
-          ALL_LEADS = ALL_LEADS.concat(res.leads);
-          if (loadIndicator) loadIndicator.textContent = ALL_LEADS.length + ' de ' + totalRows + ' (cargando...)';
-          // Actualizar dashboard en vivo
-          loadStats();
-        } else {
-          console.warn('loadLeads page', p, 'returned no leads or failed:', res.error);
-        }
+        if (res.ok && res.leads.length) ALL_LEADS = ALL_LEADS.concat(res.leads);
       } catch(e) { console.warn('loadLeads page', p, 'error:', e); }
     }
-    // Render final con todos los datos
-    console.log('loadLeads: total cargados=' + ALL_LEADS.length);
-    // Si USUARIOS_CACHE aún no llegó (startApp), esperarlo antes de poblar filtros
+    // Esperar scores antes de mostrar cualquier lead
+    list.innerHTML='<div class="loading-wrap"><div class="spinner"></div><span class="loading-text">Preparando scores…</span></div>';
     if (!USUARIOS_CACHE.length && SESSION.rol === 'admin') {
-      try {
-        const du = await apiGet({action:'getUsuarios'});
-        if(du.ok) USUARIOS_CACHE = du.usuarios;
-      } catch(e) {}
+      try { const du = await apiGet({action:'getUsuarios'}); if(du.ok) USUARIOS_CACHE = du.usuarios; } catch(e) {}
     }
-    populateFilters();
-    // Esperar scores de Firebase antes del render final para evitar el flash de scores incorrectos
     await scoresPromise;
+    // Render único con todo listo
+    populateFilters();
     applyFilters(false);
     loadStats();
     renderTerminosDash();
     renderComisionesDash();
     const tvFinal = document.getElementById('view-terminos');
     if (tvFinal && tvFinal.classList.contains('active')) renderTerminosView();
-    // Refresh periódico silencioso como red de seguridad (3 min)
     if (!window._autoRefreshTimer) {
       window._autoRefreshTimer = setInterval(function(){
         if(ALL_LEADS.length > 0) loadLeadsSilent();
