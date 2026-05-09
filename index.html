@@ -997,11 +997,13 @@ async function initFirebaseRT(){
           refreshOpenPanel();
         }
       }
-      // Recarga completa desde Sheets como red de seguridad (debounce largo)
+      // Sin campos = bulkAsignar u otro cambio de Sheets → recargar rápido
+      // Con campos = comprobante/termino, rb_pendientes ya dispara el refresh
+      var delay = (d.fila && d.campos) ? 15000 : 3000;
       clearTimeout(updatesDebounce);
       updatesDebounce = setTimeout(function(){
         if(ALL_LEADS.length > 0) loadLeadsSilent();
-      }, 15000);
+      }, delay);
     }, function(err){ console.warn('rb_updates RT error:', err); });
 
   }catch(e){console.warn('Firebase RT error:',e);}
