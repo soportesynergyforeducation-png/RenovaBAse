@@ -936,6 +936,11 @@ async function initFirebaseRT(){
         var tv = document.getElementById('view-terminos');
         if(tv && tv.classList.contains('active')) renderTerminosView();
         refreshOpenPanel();
+        // Sheets ya terminó de escribir cuando rb_pendientes llega — recargar silencioso para datos completos
+        clearTimeout(window._pendientesRefresh);
+        window._pendientesRefresh = setTimeout(function(){
+          if(ALL_LEADS.length > 0) loadLeadsSilent();
+        }, 2000);
       }, function(err){ console.warn('rb_pendientes RT error:', err); });
 
     // Listener en rb_scores — sincroniza terminoTipo y pagoFechaVerif (verificados)
