@@ -1006,6 +1006,16 @@ async function initFirebaseRT(){
       }, delay);
     }, function(err){ console.warn('rb_updates RT error:', err); });
 
+    // Listener personal por abeja — notificación directa cuando le asignan leads
+    if(SESSION && SESSION.usuario){
+      var notifyFirstLoad = true;
+      _fbDB.collection('rb_notify').doc(SESSION.usuario).onSnapshot(function(snap){
+        if(notifyFirstLoad){ notifyFirstLoad=false; return; }
+        if(!snap.exists) return;
+        if(ALL_LEADS.length > 0) loadLeadsSilent();
+      }, function(err){ console.warn('rb_notify RT error:', err); });
+    }
+
   }catch(e){console.warn('Firebase RT error:',e);}
 }
 </script>
@@ -2695,6 +2705,8 @@ async function applyBulkAbeja() {
     const res = await apiGet({ action:'bulkAsignar', correos, telefonos, abeja });
     if (res.ok) {
       pingUpdate();
+      // Notificar directamente a la abeja asignada
+      if(_fbDB && abeja) _fbDB.collection('rb_notify').doc(abeja).set({ts: Date.now(), by: SESSION.usuario||''});
       SELECTED_FILAS.forEach(fila => {
         const idx = ALL_LEADS.findIndex(l => l.fila === fila);
         if (idx >= 0) ALL_LEADS[idx].abeja = abeja;
