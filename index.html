@@ -2199,8 +2199,8 @@ function addHist(fila, dot, text) {
   if (HIST_LOCAL[fila].length > 20) HIST_LOCAL[fila].pop();
 }
 
-function openDetailPanel(l) {
-  const panel = document.getElementById('detailPanel');
+function openDetailPanel(l, panelEl) {
+  const panel = panelEl || document.getElementById('detailPanel');
   const color = avatarColor(l.nombre);
   const badge = vigenciaBadge(l.estadoVigencia);
   const stripeColor = {
@@ -2447,6 +2447,8 @@ function openDetailPanel(l) {
 function closeDetailPanel(){
   const panel = document.getElementById('detailPanel');
   panel.classList.remove('open','overlay-mode');
+  const overlay = document.getElementById('terminoDetailOverlay');
+  if (overlay) overlay.remove();
   const bd = document.getElementById('detailPanelBackdrop');
   if (bd) bd.remove();
   SELECTED_ROW=null;
@@ -3393,7 +3395,7 @@ async function goToLeadDetail(fila) {
     if (sc.termino && !lead.termino) lead.termino = sc.termino;
     if (sc.terminoTipo && !lead.terminoTipo) lead.terminoTipo = sc.terminoTipo;
   }
-  // Mostrar backdrop y panel como overlay sobre la vista actual
+  // Crear backdrop
   let bd = document.getElementById('detailPanelBackdrop');
   if (!bd) {
     bd = document.createElement('div');
@@ -3402,16 +3404,22 @@ async function goToLeadDetail(fila) {
     bd.onclick = closeDetailPanel;
     document.body.appendChild(bd);
   }
-  const panel = document.getElementById('detailPanel');
-  panel.classList.add('overlay-mode');
-  openDetailPanel(lead);
+  // Crear overlay a nivel de body (el detailPanel original está oculto dentro de view-leads)
+  let overlay = document.getElementById('terminoDetailOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'terminoDetailOverlay';
+    overlay.className = 'detail-panel overlay-mode';
+    document.body.appendChild(overlay);
+  }
+  openDetailPanel(lead, overlay);
+  overlay.classList.add('open');
 }
 // Cerrar modales con Escape
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open'));
-    const dp = document.getElementById('detailPanel');
-    if (dp && dp.classList.contains('overlay-mode')) closeDetailPanel();
+    if (document.getElementById('terminoDetailOverlay')) closeDetailPanel();
     // Si no había modales abiertos y el buscador tiene texto, limpiarlo
     const inp=document.getElementById('globalSearch');
     if(inp && document.activeElement===inp && inp.value){
