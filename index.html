@@ -950,6 +950,8 @@ async function initFirebaseRT(){
           if(d.terminoTipo)    lead.terminoTipo    = d.terminoTipo;
           if(d.pagoFechaVerif) lead.pagoFechaVerif = d.pagoFechaVerif;
           if(d.pagoEstado === 'verificado') lead.pagoEstado = 'verificado';
+          if(d.estado)         lead.estado         = d.estado;
+          if(d.notas)          lead.notas          = d.notas;
           changed = true;
         }
       });
@@ -1450,6 +1452,8 @@ async function saveScoreToFirebase(key, st) {
     if (st.pagoFechaVerif) doc.pagoFechaVerif = st.pagoFechaVerif;
     if (st.comprobante)    doc.comprobante    = st.comprobante;
     if (st.fila != null)   doc.fila           = st.fila;
+    if (st.estado)         doc.estado         = st.estado;
+    if (st.notas)          doc.notas          = st.notas;
     await _fbDB.collection('rb_scores').doc(key).set(doc, { merge: true });
   } catch(e) { console.warn('saveScore error:', e); }
 }
@@ -2133,6 +2137,8 @@ async function submitComprobante(fila) {
     st.comprobante = url;
     st.fila        = fila;
     if (terminoTipoSel) st.terminoTipo = terminoTipoSel;
+    if (estadoSel)      st.estado      = estadoSel;
+    if (params.notas)   st.notas       = params.notas;
     SCORES[key] = st;
     await saveScoreToFirebase(key, st);
     ALL_LEADS[idx].pagoEstado = 'pendiente';
