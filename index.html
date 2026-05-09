@@ -393,6 +393,14 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
 }
 .detail-panel.open { display:flex; animation:slideIn .18s ease }
 @keyframes slideIn { from{opacity:0;transform:translateX(10px)} to{opacity:1;transform:none} }
+.detail-panel.overlay-mode {
+  position:fixed; top:var(--header-h,56px); right:0; bottom:0; left:auto;
+  width:340px; z-index:200; border-radius:0 0 0 12px;
+  box-shadow:-4px 0 24px rgba(0,0,0,.18); border-left:1px solid var(--border);
+}
+.detail-panel-backdrop {
+  position:fixed; inset:0; z-index:199; background:rgba(0,0,0,.25);
+}
 
 /* Empty state */
 .rp-empty {
@@ -1865,9 +1873,9 @@ function renderLeads(){
   const start=CURRENT_PAGE*PAGE_SIZE;
   const page=FILTERED.slice(start, start+PAGE_SIZE);
 
-  // Mostrar header de selección solo si hay leads
+  // Mostrar header de selección solo si hay leads y el usuario es admin
   const listHeader = document.getElementById('listHeader');
-  if(listHeader) listHeader.style.display = '';
+  if(listHeader) listHeader.style.display = SESSION.rol==='admin' ? '' : 'none';
   const checkAll = document.getElementById('checkAll');
   if(checkAll) checkAll.checked = false;
 
@@ -1878,7 +1886,8 @@ function renderLeads(){
     const badge=vigenciaBadge(l.estadoVigencia);
     const isChecked=SELECTED_FILAS.has(l.fila);
     return`<div class="lead-row${isChecked?' checked':''}" style="animation-delay:${Math.min(i*.012,.2)}s" id="row-${l.fila}">
-      <input type="checkbox" class="lead-check" ${isChecked?'checked':''} onclick="toggleCheck(event,${l.fila})">
+      ${SESSION.rol==='admin'?`<input type="checkbox" class="lead-check" ${isChecked?'checked':''} onclick="toggleCheck(event,${l.fila})">`:''}
+
       <div class="lead-avatar" style="background:${color}" onclick="selectLead(${l.fila})">${ini}</div>
       <div class="lead-main" onclick="selectLead(${l.fila})">
         <div class="lead-name">${esc(l.nombre||'Sin nombre')}</div>
@@ -2436,7 +2445,10 @@ function openDetailPanel(l) {
 
 
 function closeDetailPanel(){
-  document.getElementById('detailPanel').classList.remove('open');
+  const panel = document.getElementById('detailPanel');
+  panel.classList.remove('open','overlay-mode');
+  const bd = document.getElementById('detailPanelBackdrop');
+  if (bd) bd.remove();
   SELECTED_ROW=null;
   document.querySelectorAll('.lead-row').forEach(r=>r.classList.remove('selected'));
 }
@@ -3370,28 +3382,36 @@ function exportTerminosCSV() {
   showToast('CSV exportado ✓');
 }
 
-function goToLeadDetail(fila) {
-  showView('leads');
-  setTimeout(() => {
-    // Buscar si está en la página actual o resetear filtros
-    const row = document.getElementById('row-'+fila);
-    if (row) {
-      selectLead(fila);
-      row.scrollIntoView({behavior:'smooth', block:'center'});
-    } else {
-      // Resetear filtros y buscar
-      setChipByValue('todos');
-      setTimeout(() => {
-        const r2 = document.getElementById('row-'+fila);
-        if (r2) { selectLead(fila); r2.scrollIntoView({behavior:'smooth',block:'center'}); }
-      }, 300);
-    }
-  }, 150);
+async function goToLeadDetail(fila) {
+  const lead = ALL_LEADS.find(l => l.fila === fila);
+  if (!lead) return;
+  SELECTED_ROW = fila;
+  await loadScoreForLead(lead);
+  const key = scoreKey(lead.correo);
+  const sc = SCORES[key];
+  if (sc) {
+    if (sc.termino && !lead.termino) lead.termino = sc.termino;
+    if (sc.terminoTipo && !lead.terminoTipo) lead.terminoTipo = sc.terminoTipo;
+  }
+  // Mostrar backdrop y panel como overlay sobre la vista actual
+  let bd = document.getElementById('detailPanelBackdrop');
+  if (!bd) {
+    bd = document.createElement('div');
+    bd.id = 'detailPanelBackdrop';
+    bd.className = 'detail-panel-backdrop';
+    bd.onclick = closeDetailPanel;
+    document.body.appendChild(bd);
+  }
+  const panel = document.getElementById('detailPanel');
+  panel.classList.add('overlay-mode');
+  openDetailPanel(lead);
 }
 // Cerrar modales con Escape
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open'));
+    const dp = document.getElementById('detailPanel');
+    if (dp && dp.classList.contains('overlay-mode')) closeDetailPanel();
     // Si no había modales abiertos y el buscador tiene texto, limpiarlo
     const inp=document.getElementById('globalSearch');
     if(inp && document.activeElement===inp && inp.value){
