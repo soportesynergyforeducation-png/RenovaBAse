@@ -3655,14 +3655,36 @@ function loadingHTML(txt) {
   return `<div class="loading-wrap" style="flex-direction:column;gap:10px">
     <div class="spinner"></div>
     <span class="loading-text">${txt}</span>
-    <span style="font-size:12px;color:var(--text3)">${frase}</span>
+    <span class="loading-frase" style="font-size:12px;color:var(--text3);transition:opacity .4s">${frase}</span>
   </div>`;
+}
+
+function startLoadingPhrases() {
+  const nombre = (SESSION&&SESSION.nombre||'').split(' ')[0] || '';
+  const frases = [
+    `En un momento${nombre?' '+nombre:''}… ☕`,
+    `Ya casi${nombre?', '+nombre:''}… 🚀`,
+    `No desesperes${nombre?', '+nombre:''}… 😄`,
+    `Ten paciencia${nombre?', '+nombre:''}… 🙏`,
+    `Cargando todo para ti${nombre?', '+nombre:''}… ✨`,
+    `Casi listo${nombre?', '+nombre:''}… 💪`,
+  ];
+  let i = 0;
+  const timer = setInterval(() => {
+    i = (i + 1) % frases.length;
+    document.querySelectorAll('.loading-frase').forEach(el => {
+      el.style.opacity = '0';
+      setTimeout(() => { el.textContent = frases[i]; el.style.opacity = '1'; }, 400);
+    });
+  }, 2500);
+  return () => clearInterval(timer);
 }
 
 async function loadLeads() {
   const list = document.getElementById('leadsList');
   list.innerHTML = loadingHTML('Cargando leads…');
   document.getElementById('statsGrid').innerHTML = loadingHTML('Cargando leads…');
+  const stopPhrases = startLoadingPhrases();
   closeDetailPanel();
   try {
     const PAGE_SIZE_API = 1000;
@@ -3690,6 +3712,7 @@ async function loadLeads() {
     }
     await scoresPromise;
     // Render único con todo listo
+    stopPhrases();
     populateFilters();
     applyFilters(false);
     loadStats();
@@ -3703,6 +3726,7 @@ async function loadLeads() {
       }, 180000);
     }
   } catch(e){
+    stopPhrases();
     document.getElementById('leadsList').innerHTML='<div class="empty-state"><div class="empty-title">Sin conexión</div><div class="empty-sub">Verifica tu internet</div></div>';
   }
 }
