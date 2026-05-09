@@ -364,6 +364,7 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
 .lead-main { flex:1; min-width:0 }
 .lead-name { font-size:13px; font-weight:600; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .lead-meta { font-size:11px; color:var(--text2); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.lead-last-action { font-size:10px; color:var(--text3); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .lead-right { display:flex; flex-direction:column; align-items:flex-end; gap:3px; flex-shrink:0 }
 .vigencia-badge {
   font-size:10px; font-weight:600; padding:2px 8px; border-radius:10px;
@@ -1430,6 +1431,18 @@ function scoreChipCls(s) {
   return 'zero';
 }
 
+function relTime(ts) {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 2)  return 'hace un momento';
+  if (mins < 60) return `hace ${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `hace ${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return 'hace 1 día';
+  return `hace ${days} días`;
+}
+
 async function applyScoreAction(lead, actionKey) {
   const act = SCORE_ACTIONS[actionKey];
   if (!act) return;
@@ -1439,7 +1452,7 @@ async function applyScoreAction(lead, actionKey) {
   st.score = next;
   const now = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
   st.hist = st.hist || [];
-  st.hist.unshift({ dot: act.dot, text: act.txt, time: now });
+  st.hist.unshift({ dot: act.dot, text: act.txt, time: now, ts: Date.now() });
   if (st.hist.length > 20) st.hist.pop();
   const key = scoreKey(lead.correo);
   SCORES[key] = st;
@@ -1459,7 +1472,7 @@ async function applyTerminoScore(lead, termino, terminoTipo) {
   const txt = isPos ? '✅ ' + (terminoTipo || termino) : '❌ ' + termino;
   const now = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
   st.hist = st.hist || [];
-  st.hist.unshift({ dot, text: txt, time: now });
+  st.hist.unshift({ dot, text: txt, time: now, ts: Date.now() });
   const key = scoreKey(lead.correo);
   SCORES[key] = st;
   // Guardar terminoTipo en el lead en memoria para el dashboard
@@ -2005,6 +2018,7 @@ function renderLeads(){
       <div class="lead-main" onclick="selectLead(${l.fila})">
         <div class="lead-name">${esc(l.nombre||'Sin nombre')}</div>
         <div class="lead-meta">${esc(l.correo||'')}${l.telefono?' · '+esc(l.telefono):''}</div>
+        ${(()=>{const h=(SCORES[scoreKey(l.correo)]?.hist||[])[0];return h&&h.ts?`<div class="lead-last-action">${esc(h.text)} · ${relTime(h.ts)}</div>`:''})()}
       </div>
       <div class="lead-right" onclick="selectLead(${l.fila})">
         <div class="${badge.cls}">${badge.txt}</div>
