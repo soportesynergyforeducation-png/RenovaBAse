@@ -3527,6 +3527,8 @@ async function goToLeadDetail(fila) {
   }
   openDetailPanel(lead, overlay);
   overlay.classList.add('open');
+  // Refrescar datos del lead desde Sheets + Firebase para asegurar info completa
+  loadLeadsSilent();
 }
 // Cerrar modales con Escape
 document.addEventListener('keydown',e=>{
