@@ -924,8 +924,12 @@ async function initFirebaseRT(){
             lead.comprobante = entry.comprobante || lead.comprobante;
             if(entry.termino)       lead.termino   = entry.termino;
             if(entry.terminoTipo)   lead.terminoTipo = entry.terminoTipo;
-            if(entry.estadoGestion) lead.estado    = entry.estadoGestion;
-            if(entry.notas)         lead.notas     = entry.notas;
+            if(entry.estadoGestion) lead.estado = entry.estadoGestion;
+            if(entry.notas)         lead.notas  = entry.notas;
+            if(entry.com1)          lead.com1   = entry.com1;
+            if(entry.com2)          lead.com2   = entry.com2;
+            if(entry.com3)          lead.com3   = entry.com3;
+            if(entry.com4)          lead.com4   = entry.com4;
           }
         });
         applyFilters(false);
@@ -953,6 +957,10 @@ async function initFirebaseRT(){
           if(d.pagoEstado === 'verificado') lead.pagoEstado = 'verificado';
           if(d.estado)         lead.estado         = d.estado;
           if(d.notas)          lead.notas          = d.notas;
+          if(d.com1)           lead.com1           = d.com1;
+          if(d.com2)           lead.com2           = d.com2;
+          if(d.com3)           lead.com3           = d.com3;
+          if(d.com4)           lead.com4           = d.com4;
           changed = true;
         }
       });
@@ -1455,6 +1463,10 @@ async function saveScoreToFirebase(key, st) {
     if (st.fila != null)   doc.fila           = st.fila;
     if (st.estado)         doc.estado         = st.estado;
     if (st.notas)          doc.notas          = st.notas;
+    if (st.com1)           doc.com1           = st.com1;
+    if (st.com2)           doc.com2           = st.com2;
+    if (st.com3)           doc.com3           = st.com3;
+    if (st.com4)           doc.com4           = st.com4;
     await _fbDB.collection('rb_scores').doc(key).set(doc, { merge: true });
   } catch(e) { console.warn('saveScore error:', e); }
 }
@@ -1472,7 +1484,9 @@ async function loadAllTerminoTipos() {
       const d = doc.data();
       map[doc.id] = {
         score: d.score, termino: d.termino||'', terminoTipo: d.terminoTipo||'', pagoEstado: d.pagoEstado||'',
-        pagoFechaVerif: d.pagoFechaVerif||'', comprobante: d.comprobante||'', fila: d.fila, hist: d.hist||[]
+        pagoFechaVerif: d.pagoFechaVerif||'', comprobante: d.comprobante||'', fila: d.fila, hist: d.hist||[],
+        estado: d.estado||'', notas: d.notas||'',
+        com1: d.com1||'', com2: d.com2||'', com3: d.com3||'', com4: d.com4||''
       };
     });
     ALL_LEADS.forEach(l => {
@@ -1483,6 +1497,12 @@ async function loadAllTerminoTipos() {
         if (map[key].pagoEstado)     l.pagoEstado     = map[key].pagoEstado;
         if (map[key].pagoFechaVerif) l.pagoFechaVerif = map[key].pagoFechaVerif;
         if (map[key].comprobante)    l.comprobante    = map[key].comprobante;
+        if (map[key].estado)         l.estado         = map[key].estado;
+        if (map[key].notas)          l.notas          = map[key].notas;
+        if (map[key].com1)           l.com1           = map[key].com1;
+        if (map[key].com2)           l.com2           = map[key].com2;
+        if (map[key].com3)           l.com3           = map[key].com3;
+        if (map[key].com4)           l.com4           = map[key].com4;
         if (!SCORES[key]) SCORES[key] = {};
         Object.assign(SCORES[key], map[key]);
         // PENDIENTES_MAP se llena desde el onSnapshot de rb_pendientes/estado (no aquí)
@@ -2137,9 +2157,14 @@ async function submitComprobante(fila) {
     st.pagoEstado  = 'pendiente';
     st.comprobante = url;
     st.fila        = fila;
-    if (terminoTipoSel) st.terminoTipo = terminoTipoSel;
-    if (estadoSel)      st.estado      = estadoSel;
-    if (params.notas)   st.notas       = params.notas;
+    if (terminoTipoSel)  st.terminoTipo = terminoTipoSel;
+    if (estadoSel)       st.estado      = estadoSel;
+    if (params.notas)    st.notas       = params.notas;
+    const _fc = id => (document.getElementById(id)?.value||'').trim();
+    if (_fc('dp_com1'))  st.com1 = _fc('dp_com1');
+    if (_fc('dp_com2'))  st.com2 = _fc('dp_com2');
+    if (_fc('dp_com3'))  st.com3 = _fc('dp_com3');
+    if (_fc('dp_com4'))  st.com4 = _fc('dp_com4');
     SCORES[key] = st;
     await saveScoreToFirebase(key, st);
     ALL_LEADS[idx].pagoEstado = 'pendiente';
@@ -2157,6 +2182,10 @@ async function submitComprobante(fila) {
         estado:        'pendiente',
         estadoGestion: estadoSel               || '',
         notas:         params.notas            || '',
+        com1:          fv('dp_com1')           || '',
+        com2:          fv('dp_com2')           || '',
+        com3:          fv('dp_com3')           || '',
+        com4:          fv('dp_com4')           || '',
         ts:            new Date().toISOString()
       };
       _fbDB.collection('rb_pendientes').doc('estado')
@@ -2228,6 +2257,12 @@ async function verificarPago(fila) {
   st.pagoEstado    = 'verificado';
   st.pagoFechaVerif = new Date().toISOString();
   if (lead.terminoTipo) st.terminoTipo = lead.terminoTipo;
+  if (lead.estado)      st.estado      = lead.estado;
+  if (lead.notas)       st.notas       = lead.notas;
+  if (lead.com1)        st.com1        = lead.com1;
+  if (lead.com2)        st.com2        = lead.com2;
+  if (lead.com3)        st.com3        = lead.com3;
+  if (lead.com4)        st.com4        = lead.com4;
   SCORES[key] = st;
   await saveScoreToFirebase(key, st);
   ALL_LEADS[idx].pagoEstado    = 'verificado';
