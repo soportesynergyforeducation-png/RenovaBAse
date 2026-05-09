@@ -930,6 +930,7 @@ async function initFirebaseRT(){
         applyFilters(false);
         var tv = document.getElementById('view-terminos');
         if(tv && tv.classList.contains('active')) renderTerminosView();
+        refreshOpenPanel();
       }, function(err){ console.warn('rb_pendientes RT error:', err); });
 
     // Listener en rb_scores — sincroniza terminoTipo y pagoFechaVerif (verificados)
@@ -958,6 +959,7 @@ async function initFirebaseRT(){
         applyFilters(false);
         var tv = document.getElementById('view-terminos');
         if(tv && tv.classList.contains('active')) renderTerminosView();
+        refreshOpenPanel();
       }
     }, function(err){ console.warn('rb_scores RT error:', err); });
 
@@ -1511,6 +1513,20 @@ async function apiGet(params) {
 // Alias: todo va por GET
 async function apiPost(params) {
   return apiGet(params);
+}
+
+// Refresca el panel de detalle abierto (overlay de términos o panel lateral) con datos frescos
+function refreshOpenPanel(){
+  if(!SELECTED_ROW) return;
+  var lead = ALL_LEADS.find(function(l){ return l.fila===SELECTED_ROW; });
+  if(!lead) return;
+  var overlay = document.getElementById('terminoDetailOverlay');
+  if(overlay && overlay.classList.contains('open')){
+    openDetailPanel(lead, overlay);
+    return;
+  }
+  var panel = document.getElementById('detailPanel');
+  if(panel && panel.classList.contains('open')) openDetailPanel(lead);
 }
 
 // Notifica a todos los clientes conectados que hubo un cambio en Sheets
@@ -3481,8 +3497,18 @@ async function loadLeadsSilent() {
     applyFilters(false);
     loadStats();
     if (selectedFila) {
-      const still = ALL_LEADS.find(l => l.fila === selectedFila);
-      if (still) selectLead(selectedFila);
+      const updatedLead = ALL_LEADS.find(l => l.fila === selectedFila);
+      if (updatedLead) {
+        const overlay = document.getElementById('terminoDetailOverlay');
+        if (overlay && overlay.classList.contains('open')) {
+          openDetailPanel(updatedLead, overlay);
+        } else {
+          const panel = document.getElementById('detailPanel');
+          if (panel && panel.classList.contains('open')) {
+            openDetailPanel(updatedLead);
+          }
+        }
+      }
     }
     document.getElementById('leadsList').scrollTop = scrollTop;
     loadAllTerminoTipos().then(() => {
