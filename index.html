@@ -1977,6 +1977,7 @@ function renderLeads(){
   const checkAll = document.getElementById('checkAll');
   if(checkAll) checkAll.checked = false;
 
+  const prevScroll = list.scrollTop;
   list.innerHTML=page.map((l,i)=>{
     const ini=(l.nombre||'?').charAt(0).toUpperCase();
     const color=avatarColor(l.nombre);
@@ -2003,7 +2004,7 @@ function renderLeads(){
   }).join('');
 
   renderPagination(totalPages);
-  list.scrollTop=0;
+  list.scrollTop = prevScroll;
 }
 
 function renderPagination(totalPages){
