@@ -2091,8 +2091,7 @@ async function submitComprobante(fila) {
     if (terminoTipoSel)                        params.terminoTipo = terminoTipoSel;
     if (ESTADOS_SHEET.includes(estadoSel))    params.estado      = estadoSel;
 
-    const res = await apiGet(params);
-    if (!res.ok) { showToast('Error al guardar: ' + res.error, true); if (btn) { btn.disabled = false; btn.textContent = 'Enviar comprobante'; } return; }
+    // Escribir a Firebase ANTES del Sheets para que los demás clientes reciban los datos al instante
     pingUpdate(fila, {
       evento: params.evento, membresia: params.membresia, vencimiento: params.vencimiento,
       notas: params.notas, comprobante: url,
@@ -2100,6 +2099,9 @@ async function submitComprobante(fila) {
       ...(params.terminoTipo ? {terminoTipo: params.terminoTipo} : {}),
       ...(params.estado      ? {estado:      params.estado}      : {})
     });
+
+    const res = await apiGet(params);
+    if (!res.ok) { showToast('Error al guardar: ' + res.error, true); if (btn) { btn.disabled = false; btn.textContent = 'Enviar comprobante'; } return; }
 
     // Actualizar ALL_LEADS con TODOS los valores del formulario (incluyendo termino)
     // para que openDetailPanel re-renderice sin perder ningún cambio
@@ -2201,11 +2203,11 @@ async function verificarPago(fila) {
       notas:            document.getElementById('dp_notas')?.value      || '',
     };
     try {
+      const { action, correo, telefonoBusqueda, ...campos } = params;
+      pingUpdate(ALL_LEADS[idx].fila, campos);
       const res = await apiGet(params);
       if (res.ok) {
-        const { action, correo, telefonoBusqueda, ...campos } = params;
         Object.assign(ALL_LEADS[idx], campos);
-        pingUpdate(ALL_LEADS[idx].fila, campos);
       }
     } catch(e) { console.warn('verificarPago: save profile error', e); }
   }
