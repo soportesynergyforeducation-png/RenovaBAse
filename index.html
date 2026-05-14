@@ -688,6 +688,14 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
   cursor:pointer; font-weight:600; transition:background .15s;
 }
 .dia-add-btn:hover { background:var(--accent-lo) }
+.dia-action-btn {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:6px 14px; border-radius:20px; font-size:12px; font-weight:600;
+  text-decoration:none; transition:opacity .15s;
+}
+.dia-action-btn:hover { opacity:.82 }
+.dia-action-btn.llamada { background:var(--fire); color:white }
+.dia-action-btn.mensaje  { background:#25D366; color:white }
 
 /* ══════════════════════════════════════════
    USUARIOS
@@ -3113,15 +3121,23 @@ function openCitaModal(fechaKey){
     document.querySelector('.cita-modal').innerHTML = `
       <div class="cita-modal-title">${d}/${m}/${y}</div>
       <div class="dia-citas-list">
-        ${citasDelDia.map(c=>`
-          <div class="dia-cita-item">
-            <div class="dia-cita-icon">${c.tipo==='llamada'?'📞':'💬'}</div>
-            <div class="dia-cita-info">
-              <div class="dia-cita-nombre">${esc(c.leadNombre||'Sin nombre')}</div>
-              <div class="dia-cita-sub">${c.hora||''} ${c.notas?'· '+esc(c.notas.slice(0,40)):''}</div>
+        ${citasDelDia.map(c=>{
+        const tel = (c.leadTel||'').replace(/\D/g,'');
+        const accionBtn = c.tipo==='llamada'
+          ? (tel ? `<a href="tel:+${tel}" class="dia-action-btn llamada">📞 Llamar</a>` : '')
+          : (tel ? `<a href="https://wa.me/${tel.length===10?'52'+tel:tel}" target="_blank" class="dia-action-btn mensaje">💬 WhatsApp</a>` : '');
+        return `<div class="dia-cita-item">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+                <span style="font-size:15px">${c.tipo==='llamada'?'📞':'💬'}</span>
+                <div class="dia-cita-nombre">${esc(c.leadNombre||'Sin nombre')}</div>
+              </div>
+              <div class="dia-cita-sub">${c.hora||''} ${c.notas?'· '+esc(c.notas.slice(0,50)):''}</div>
+              ${accionBtn ? `<div style="margin-top:8px">${accionBtn}</div>` : ''}
             </div>
             <button class="dia-cita-del" onclick="deleteCitaFromDay('${c.id}','${fechaKey}')">✕</button>
-          </div>`).join('')}
+          </div>`;
+      }).join('')}
       </div>
       <button class="dia-add-btn" onclick="openNuevaCitaForm('${fechaKey}')">+ Nueva cita este día</button>
       <div class="cita-modal-footer">
