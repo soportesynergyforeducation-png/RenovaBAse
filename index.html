@@ -642,7 +642,7 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
 .agenda-nav {
   display:flex; align-items:center; gap:12px; margin-bottom:20px;
 }
-.agenda-nav-title { font-family:var(--serif); font-size:22px; font-style:italic; flex:1; text-align:center }
+.agenda-nav-title { font-family:var(--serif); font-size:26px; font-style:italic; font-weight:400; letter-spacing:.01em; flex:1; text-align:center }
 .cal-container {
   background:var(--surface); border:1px solid var(--border);
   border-radius:var(--r); overflow:hidden; margin-bottom:20px;
@@ -653,8 +653,8 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
 }
 .cal-dow {
   padding:10px 4px; text-align:center;
-  font-size:11px; font-weight:600; text-transform:uppercase;
-  letter-spacing:.05em; color:var(--text3);
+  font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.12em; color:var(--text3); font-family:var(--font);
 }
 .cal-grid { display:grid; grid-template-columns:repeat(7,1fr) }
 .cal-cell {
@@ -667,8 +667,9 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
 .cal-cell.today { background:var(--accent-lo) }
 .cal-cell:not(.other-month):hover { background:var(--bg) }
 .cal-day-num {
-  font-size:11px; font-weight:600; color:var(--text2);
+  font-size:12px; font-weight:500; color:var(--text2);
   margin-bottom:4px; font-variant-numeric:tabular-nums;
+  font-family:var(--serif); font-style:italic;
 }
 .cal-cell.today .cal-day-num {
   color:white; background:var(--accent); width:20px; height:20px;
@@ -683,14 +684,14 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
 .cal-dot.mensaje  { background:var(--go) }
 .cal-count { font-size:9px; color:var(--text3); margin-top:2px }
 
-.agenda-list-title { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); margin-bottom:12px }
-.agenda-group { margin-bottom:18px }
+.agenda-list-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--text3); margin-bottom:14px; font-family:var(--font) }
+.agenda-group { margin-bottom:20px }
 .agenda-group-header {
-  display:flex; align-items:center; gap:8px; margin-bottom:8px; padding-bottom:6px;
+  display:flex; align-items:center; gap:8px; margin-bottom:8px; padding-bottom:7px;
   border-bottom:1px solid var(--border);
 }
-.agenda-group-date { font-size:13px; font-weight:700 }
-.agenda-group-count { font-size:11px; color:var(--text3) }
+.agenda-group-date { font-size:14px; font-weight:600; font-family:var(--serif); font-style:italic; letter-spacing:.01em }
+.agenda-group-count { font-size:11px; color:var(--text3); font-variant-numeric:tabular-nums }
 .agenda-item {
   display:flex; align-items:center; gap:10px;
   padding:8px 12px; border-radius:var(--r2);
@@ -703,8 +704,8 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
   display:flex; align-items:center; justify-content:center;
   font-size:11px; font-weight:700; color:white;
 }
-.agenda-name { font-size:13px; font-weight:600; flex:1 }
-.agenda-meta { font-size:11px; color:var(--text2) }
+.agenda-name { font-size:13px; font-weight:600; flex:1; letter-spacing:-.01em }
+.agenda-meta { font-size:11px; color:var(--text2); font-variant-numeric:tabular-nums; letter-spacing:.01em }
 .agenda-tipo-badge {
   font-size:10px; font-weight:600; padding:2px 7px; border-radius:20px;
 }
