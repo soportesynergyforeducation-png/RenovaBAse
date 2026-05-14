@@ -670,6 +670,24 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
   font-size:13px; font-weight:600; cursor:pointer; transition:opacity .15s;
 }
 .cita-modal-footer .btn-save:hover { opacity:.88 }
+.dia-citas-list { display:flex; flex-direction:column; gap:8px; margin-bottom:4px }
+.dia-cita-item {
+  display:flex; align-items:center; gap:10px;
+  padding:8px 10px; border-radius:var(--r2);
+  border:1px solid var(--border); background:var(--bg);
+}
+.dia-cita-icon { font-size:16px; flex-shrink:0 }
+.dia-cita-info { flex:1; min-width:0 }
+.dia-cita-nombre { font-size:13px; font-weight:600 }
+.dia-cita-sub { font-size:11px; color:var(--text3) }
+.dia-cita-del { background:none; border:none; cursor:pointer; color:var(--text3); font-size:13px; padding:2px 5px; border-radius:4px }
+.dia-cita-del:hover { color:var(--fire) }
+.dia-add-btn {
+  width:100%; padding:9px; border:1px dashed var(--border2); border-radius:var(--r2);
+  background:none; font-family:var(--font); font-size:13px; color:var(--accent);
+  cursor:pointer; font-weight:600; transition:background .15s;
+}
+.dia-add-btn:hover { background:var(--accent-lo) }
 
 /* ══════════════════════════════════════════
    USUARIOS
@@ -3085,15 +3103,70 @@ function agendaScrollToDate(key){
 // ── Modal cita ──
 function openCitaModal(fechaKey){
   CITA_FECHA_SEL = fechaKey;
+  const [y,m,d]  = fechaKey.split('-');
+  const citasDelDia = AGENDA_CITAS.filter(c=>c.fecha===fechaKey);
+
+  if(citasDelDia.length > 0){
+    // Mostrar citas existentes del día + botón agregar
+    const modal = document.getElementById('citaModalOverlay');
+    document.getElementById('citaModalTitle').textContent = `${d}/${m}/${y}`;
+    document.querySelector('.cita-modal').innerHTML = `
+      <div class="cita-modal-title">${d}/${m}/${y}</div>
+      <div class="dia-citas-list">
+        ${citasDelDia.map(c=>`
+          <div class="dia-cita-item">
+            <div class="dia-cita-icon">${c.tipo==='llamada'?'📞':'💬'}</div>
+            <div class="dia-cita-info">
+              <div class="dia-cita-nombre">${esc(c.leadNombre||'Sin nombre')}</div>
+              <div class="dia-cita-sub">${c.hora||''} ${c.notas?'· '+esc(c.notas.slice(0,40)):''}</div>
+            </div>
+            <button class="dia-cita-del" onclick="deleteCitaFromDay('${c.id}','${fechaKey}')">✕</button>
+          </div>`).join('')}
+      </div>
+      <button class="dia-add-btn" onclick="openNuevaCitaForm('${fechaKey}')">+ Nueva cita este día</button>
+      <div class="cita-modal-footer">
+        <button class="btn-cancel" onclick="closeCitaModal()">Cerrar</button>
+      </div>`;
+    modal.style.display = 'flex';
+  } else {
+    openNuevaCitaForm(fechaKey);
+  }
+}
+
+function openNuevaCitaForm(fechaKey){
+  CITA_FECHA_SEL = fechaKey;
   CITA_LEAD_SEL  = null;
   const [y,m,d]  = fechaKey.split('-');
-  document.getElementById('citaModalTitle').textContent = `Nueva cita — ${d}/${m}/${y}`;
-  document.getElementById('citaLeadSearch').value   = '';
-  document.getElementById('citaLeadResults').style.display = 'none';
-  document.getElementById('citaLeadSelected').style.display = 'none';
-  document.getElementById('citaHora').value  = '';
-  document.getElementById('citaNotas').value = '';
-  setCitaTipo('llamada');
+  document.querySelector('.cita-modal').innerHTML = `
+    <div class="cita-modal-title" id="citaModalTitle">Nueva cita — ${d}/${m}/${y}</div>
+    <div class="cita-field">
+      <div class="cita-label">Tipo</div>
+      <div class="cita-tipo-row">
+        <button class="cita-tipo-btn active-llamada" id="tipoBtnLlamada" onclick="setCitaTipo('llamada')">📞 Llamada</button>
+        <button class="cita-tipo-btn" id="tipoBtnMensaje" onclick="setCitaTipo('mensaje')">💬 Mensaje</button>
+      </div>
+    </div>
+    <div class="cita-field">
+      <div class="cita-label">Lead</div>
+      <div class="lead-search-wrap">
+        <input class="cita-input" id="citaLeadSearch" placeholder="Buscar por nombre, correo o teléfono…" oninput="searchLeadForCita()" autocomplete="off">
+        <div class="lead-search-results" id="citaLeadResults" style="display:none"></div>
+      </div>
+      <div id="citaLeadSelected" style="display:none; font-size:12px; color:var(--accent); margin-top:4px; font-weight:600"></div>
+    </div>
+    <div class="cita-field">
+      <div class="cita-label">Hora</div>
+      <input class="cita-input" type="time" id="citaHora">
+    </div>
+    <div class="cita-field">
+      <div class="cita-label">Notas</div>
+      <textarea class="cita-input" id="citaNotas" rows="3" placeholder="Detalles de la cita…" style="resize:vertical"></textarea>
+    </div>
+    <div class="cita-modal-footer">
+      <button class="btn-cancel" onclick="closeCitaModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveCita()">Guardar cita</button>
+    </div>`;
+  CITA_TIPO_SEL = 'llamada';
   document.getElementById('citaModalOverlay').style.display = 'flex';
   setTimeout(()=>document.getElementById('citaLeadSearch').focus(),100);
 }
@@ -3159,9 +3232,9 @@ async function saveCita(){
       usuario:    SESSION.usuario||'',
       creadoEn:   new Date().toISOString()
     });
-    closeCitaModal();
     showToast('Cita guardada');
-    renderAgenda();
+    await renderAgenda();
+    openCitaModal(CITA_FECHA_SEL);
   } catch(e){
     showToast('Error al guardar',true);
   } finally {
@@ -3175,6 +3248,22 @@ async function deleteCita(id){
     await _fbDB.collection('rb_agenda').doc(id).delete();
     showToast('Cita eliminada');
     renderAgenda();
+  } catch(e){ showToast('Error al eliminar',true); }
+}
+
+async function deleteCitaFromDay(id, fechaKey){
+  if(!confirm('¿Eliminar esta cita?')) return;
+  try {
+    await _fbDB.collection('rb_agenda').doc(id).delete();
+    AGENDA_CITAS = AGENDA_CITAS.filter(c=>c.id!==id);
+    showToast('Cita eliminada');
+    const restantes = AGENDA_CITAS.filter(c=>c.fecha===fechaKey);
+    if(restantes.length > 0){
+      openCitaModal(fechaKey);
+    } else {
+      closeCitaModal();
+      renderAgenda();
+    }
   } catch(e){ showToast('Error al eliminar',true); }
 }
 
