@@ -2237,7 +2237,7 @@ function avatarColor(name){
   let h=0; for(let i=0;i<(name||'').length;i++) h=(name.charCodeAt(i)+h*31)%c.length;
   return c[Math.abs(h)%c.length];
 }
-function openWA(e,tel){e.stopPropagation();if(!tel)return;const c=tel.replace(/\D/g,'');window.open('https://wa.me/'+(c.startsWith('52')?c:'52'+c),'_blank');}
+function openWA(e,tel){e.stopPropagation();if(!tel)return;const c=tel.replace(/\D/g,'');window.open('https://wa.me/'+(c.length===10?'52'+c:c),'_blank');}
 // ══ DETAIL PANEL ══
 async function selectLead(fila){
   const lead=ALL_LEADS.find(l=>l.fila===fila);
@@ -3122,10 +3122,9 @@ function _renderPanelDia(fechaKey){
   document.getElementById('diaTitulo').textContent = `${d}/${m}/${y}`;
   document.getElementById('diaCitasList').innerHTML = citas.map(c=>{
     const tel = (c.leadTel||'').replace(/\D/g,'');
-    const numWa = tel.length===10 ? '52'+tel : tel;
     const accionBtn = c.tipo==='llamada'
       ? (tel ? `<a href="tel:+${tel}" class="dia-action-btn llamada">📞 Llamar</a>` : '')
-      : (tel ? `<a href="https://wa.me/${numWa}" target="_blank" class="dia-action-btn mensaje">💬 WhatsApp</a>` : '');
+      : (tel ? `<a href="https://wa.me/${tel}" target="_blank" class="dia-action-btn mensaje">💬 WhatsApp</a>` : '');
     return `<div class="dia-cita-item">
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
