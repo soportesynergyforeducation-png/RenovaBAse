@@ -1359,34 +1359,52 @@ async function initFirebaseRT(){
       <!-- MODAL CITA -->
       <div class="cita-modal-overlay" id="citaModalOverlay" style="display:none" onclick="if(event.target===this)closeCitaModal()">
         <div class="cita-modal">
-          <div class="cita-modal-title" id="citaModalTitle">Nueva cita</div>
-          <div class="cita-field">
-            <div class="cita-label">Tipo</div>
-            <div class="cita-tipo-row">
-              <button class="cita-tipo-btn" id="tipoBtnLlamada" onclick="setCitaTipo('llamada')">📞 Llamada</button>
-              <button class="cita-tipo-btn" id="tipoBtnMensaje" onclick="setCitaTipo('mensaje')">💬 Mensaje</button>
+
+          <!-- PANEL: vista del día -->
+          <div id="panelDia">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div class="cita-modal-title" id="diaTitulo"></div>
+              <button class="btn-cancel" style="padding:6px 12px" onclick="closeCitaModal()">✕</button>
+            </div>
+            <div class="dia-citas-list" id="diaCitasList"></div>
+            <button class="dia-add-btn" onclick="showPanelForm()">+ Nueva cita este día</button>
+          </div>
+
+          <!-- PANEL: formulario nueva cita -->
+          <div id="panelForm" style="display:none">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+              <button class="btn-cancel" style="padding:6px 10px" onclick="backToPanelDia()" id="btnBackDia">← Volver</button>
+              <div class="cita-modal-title" id="formTitulo"></div>
+            </div>
+            <div class="cita-field">
+              <div class="cita-label">Tipo</div>
+              <div class="cita-tipo-row">
+                <button class="cita-tipo-btn active-llamada" id="tipoBtnLlamada" onclick="setCitaTipo('llamada')">📞 Llamada</button>
+                <button class="cita-tipo-btn" id="tipoBtnMensaje" onclick="setCitaTipo('mensaje')">💬 Mensaje</button>
+              </div>
+            </div>
+            <div class="cita-field">
+              <div class="cita-label">Lead</div>
+              <div class="lead-search-wrap">
+                <input class="cita-input" id="citaLeadSearch" placeholder="Buscar nombre, correo o teléfono…" oninput="searchLeadForCita()" autocomplete="off">
+                <div class="lead-search-results" id="citaLeadResults" style="display:none"></div>
+              </div>
+              <div id="citaLeadSelected" style="display:none;font-size:12px;color:var(--accent);margin-top:4px;font-weight:600"></div>
+            </div>
+            <div class="cita-field">
+              <div class="cita-label">Hora</div>
+              <input class="cita-input" type="time" id="citaHora">
+            </div>
+            <div class="cita-field">
+              <div class="cita-label">Notas</div>
+              <textarea class="cita-input" id="citaNotas" rows="3" placeholder="Detalles de la cita…" style="resize:vertical"></textarea>
+            </div>
+            <div class="cita-modal-footer">
+              <button class="btn-cancel" onclick="backToPanelDia()" id="btnCancelForm">Cancelar</button>
+              <button class="btn-save" id="btnSaveCita" onclick="saveCita()">Guardar cita</button>
             </div>
           </div>
-          <div class="cita-field">
-            <div class="cita-label">Lead</div>
-            <div class="lead-search-wrap">
-              <input class="cita-input" id="citaLeadSearch" placeholder="Buscar por nombre, correo o teléfono…" oninput="searchLeadForCita()" autocomplete="off">
-              <div class="lead-search-results" id="citaLeadResults" style="display:none"></div>
-            </div>
-            <div id="citaLeadSelected" style="display:none; font-size:12px; color:var(--accent); margin-top:4px; font-weight:600"></div>
-          </div>
-          <div class="cita-field">
-            <div class="cita-label">Hora</div>
-            <input class="cita-input" type="time" id="citaHora">
-          </div>
-          <div class="cita-field">
-            <div class="cita-label">Notas</div>
-            <textarea class="cita-input" id="citaNotas" rows="3" placeholder="Detalles de la cita…" style="resize:vertical"></textarea>
-          </div>
-          <div class="cita-modal-footer">
-            <button class="btn-cancel" onclick="closeCitaModal()">Cancelar</button>
-            <button class="btn-save" onclick="saveCita()">Guardar cita</button>
-          </div>
+
         </div>
       </div>
 
@@ -2997,194 +3015,156 @@ function exportCSV(){
 const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 // ══ AGENDA — estado ══
-let AGENDA_CITAS = [];   // citas del mes cargado desde Firestore
-let CITA_FECHA_SEL = ''; // YYYY-MM-DD seleccionada en el modal
+let AGENDA_CITAS   = [];
+let CITA_FECHA_SEL = '';
 let CITA_TIPO_SEL  = 'llamada';
-let CITA_LEAD_SEL  = null; // { fila, nombre, correo, telefono }
+let CITA_LEAD_SEL  = null;
+let _agendaUnsub   = null; // listener tiempo real
 
 function agendaPrev(){ AGENDA_DATE.setMonth(AGENDA_DATE.getMonth()-1); renderAgenda(); }
 function agendaNext(){ AGENDA_DATE.setMonth(AGENDA_DATE.getMonth()+1); renderAgenda(); }
 function agendaToday(){ AGENDA_DATE=new Date(); renderAgenda(); }
 
-// ── Cargar citas del mes desde Firestore ──
-async function loadCitasDelMes(year, month){
+// ── Listener en tiempo real para el mes ──
+function suscribirAgenda(year, month){
+  if(_agendaUnsub) _agendaUnsub();
   const desde = year+'-'+String(month+1).padStart(2,'0')+'-01';
   const hasta  = year+'-'+String(month+1).padStart(2,'0')+'-'+String(new Date(year,month+1,0).getDate()).padStart(2,'0');
-  try {
-    const snap = await _fbDB.collection('rb_agenda')
-      .where('fecha','>=',desde).where('fecha','<=',hasta).get();
-    AGENDA_CITAS = snap.docs.map(d=>({id:d.id,...d.data()}))
-      .sort((a,b)=> a.fecha===b.fecha ? (a.hora||'').localeCompare(b.hora||'') : a.fecha.localeCompare(b.fecha));
-  } catch(e){ AGENDA_CITAS=[]; }
+  _agendaUnsub = _fbDB.collection('rb_agenda')
+    .where('fecha','>=',desde).where('fecha','<=',hasta)
+    .onSnapshot(snap=>{
+      AGENDA_CITAS = snap.docs.map(d=>({id:d.id,...d.data()}))
+        .sort((a,b)=> a.fecha===b.fecha ? (a.hora||'').localeCompare(b.hora||'') : a.fecha.localeCompare(b.fecha));
+      _renderCalendario(year, month);
+      _renderListaMes(year, month);
+      // Si el modal del día está abierto, actualizarlo también
+      const overlay = document.getElementById('citaModalOverlay');
+      if(overlay.style.display!=='none' && CITA_FECHA_SEL){
+        _renderPanelDia(CITA_FECHA_SEL);
+      }
+    }, ()=>{ AGENDA_CITAS=[]; });
 }
 
-async function renderAgenda(){
+function renderAgenda(){
   const year  = AGENDA_DATE.getFullYear();
   const month = AGENDA_DATE.getMonth();
   document.getElementById('agendaMonthTitle').textContent = MESES[month]+' '+year;
   document.getElementById('agendaList').innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+  suscribirAgenda(year, month);
+}
 
-  await loadCitasDelMes(year, month);
-
-  // Mapa de citas por día
+function _renderCalendario(year, month){
   const citaMap = {};
-  AGENDA_CITAS.forEach(c=>{
-    if(!citaMap[c.fecha]) citaMap[c.fecha]=[];
-    citaMap[c.fecha].push(c);
-  });
-
-  // Generar calendario
+  AGENDA_CITAS.forEach(c=>{ if(!citaMap[c.fecha]) citaMap[c.fecha]=[]; citaMap[c.fecha].push(c); });
   const firstDay = new Date(year,month,1);
   const lastDay  = new Date(year,month+1,0);
   const startDow = firstDay.getDay();
   const today    = new Date(); today.setHours(0,0,0,0);
   const prevLast = new Date(year,month,0).getDate();
-
-  let cells = '';
-  for(let i=startDow-1;i>=0;i--){
+  let cells='';
+  for(let i=startDow-1;i>=0;i--)
     cells+=`<div class="cal-cell other-month"><div class="cal-day-num">${prevLast-i}</div></div>`;
-  }
   for(let d=1;d<=lastDay.getDate();d++){
-    const keyStr = year+'-'+String(month+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    const key = year+'-'+String(month+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     const isToday = new Date(year,month,d).getTime()===today.getTime();
-    const citas   = citaMap[keyStr]||[];
-    const dots    = citas.slice(0,6).map(c=>`<div class="cal-dot ${c.tipo}"></div>`).join('');
-    cells+=`<div class="cal-cell${isToday?' today':''}" onclick="openCitaModal('${keyStr}')">
+    const citas = citaMap[key]||[];
+    const dots  = citas.slice(0,6).map(c=>`<div class="cal-dot ${c.tipo}"></div>`).join('');
+    cells+=`<div class="cal-cell${isToday?' today':''}" onclick="openCitaModal('${key}')">
       ${isToday?`<div class="cal-day-num"><span>${d}</span></div>`:`<div class="cal-day-num">${d}</div>`}
       ${citas.length?`<div class="cal-dots">${dots}</div><div class="cal-count">${citas.length} cita${citas.length!==1?'s':''}</div>`:''}
     </div>`;
   }
-  const remaining = (7-((startDow+lastDay.getDate())%7))%7;
-  for(let d=1;d<=remaining;d++){
+  const rem=(7-((startDow+lastDay.getDate())%7))%7;
+  for(let d=1;d<=rem;d++)
     cells+=`<div class="cal-cell other-month"><div class="cal-day-num">${d}</div></div>`;
-  }
-  document.getElementById('calGrid').innerHTML = cells;
+  document.getElementById('calGrid').innerHTML=cells;
+}
 
-  // Lista del mes
+function _renderListaMes(year, month){
   const listTitle = document.getElementById('agendaListTitle');
   if(!AGENDA_CITAS.length){
-    listTitle.textContent = '';
-    document.getElementById('agendaList').innerHTML =
-      '<div class="empty-state"><div class="empty-title">Sin citas este mes</div><div class="empty-sub">Haz clic en un día para agendar</div></div>';
+    listTitle.textContent='';
+    document.getElementById('agendaList').innerHTML=
+      '<div class="empty-state"><div class="empty-title">Sin citas este mes</div><div class="empty-sub">Toca un día para agendar</div></div>';
     return;
   }
-  listTitle.textContent = `Citas en ${MESES[month]} ${year} (${AGENDA_CITAS.length})`;
-
-  // Agrupar por fecha
-  const groups = {};
-  AGENDA_CITAS.forEach(c=>{
-    if(!groups[c.fecha]) groups[c.fecha]=[];
-    groups[c.fecha].push(c);
-  });
-
-  document.getElementById('agendaList').innerHTML = Object.entries(groups).map(([fecha, citas])=>{
-    const [y,m,d] = fecha.split('-');
-    const fechaFmt = d+'/'+m+'/'+y;
+  listTitle.textContent=`Citas en ${MESES[month]} ${year} (${AGENDA_CITAS.length})`;
+  const groups={};
+  AGENDA_CITAS.forEach(c=>{ if(!groups[c.fecha]) groups[c.fecha]=[]; groups[c.fecha].push(c); });
+  document.getElementById('agendaList').innerHTML=Object.entries(groups).map(([fecha,citas])=>{
+    const [y,m,d]=fecha.split('-');
     return `<div class="agenda-group" id="agdate-${fecha}">
       <div class="agenda-group-header">
-        <span class="agenda-group-date">${fechaFmt}</span>
+        <span class="agenda-group-date">${d}/${m}/${y}</span>
         <span class="agenda-group-count">${citas.length} cita${citas.length!==1?'s':''}</span>
       </div>
       ${citas.map(c=>`
-        <div class="agenda-item">
-          <div class="agenda-avatar" style="background:${c.tipo==='llamada'?'var(--fire)':'var(--go)'}">
-            ${c.tipo==='llamada'?'📞':'💬'}
-          </div>
+        <div class="agenda-item" onclick="openCitaModal('${fecha}')">
+          <div class="agenda-avatar" style="background:${c.tipo==='llamada'?'var(--fire)':'var(--go)'}">${c.tipo==='llamada'?'📞':'💬'}</div>
           <div style="flex:1;min-width:0">
             <div class="agenda-name">${esc(c.leadNombre||'Sin nombre')}</div>
-            <div class="agenda-meta">${c.hora||''} ${c.leadCorreo?'· '+esc(c.leadCorreo):''} ${c.notas?'· '+esc(c.notas.slice(0,40)):''}</div>
+            <div class="agenda-meta">${c.hora||''} ${c.notas?'· '+esc(c.notas.slice(0,40)):''}</div>
           </div>
-          <div class="agenda-item-actions">
-            <span class="agenda-tipo-badge ${c.tipo}">${c.tipo==='llamada'?'Llamada':'Mensaje'}</span>
-            <button class="agenda-del-btn" onclick="deleteCita('${c.id}')" title="Eliminar">✕</button>
-          </div>
+          <span class="agenda-tipo-badge ${c.tipo}">${c.tipo==='llamada'?'Llamada':'Mensaje'}</span>
         </div>`).join('')}
     </div>`;
   }).join('');
 }
 
-function agendaScrollToDate(key){
-  const el = document.getElementById('agdate-'+key);
-  if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+// ── Panel día dentro del modal ──
+function _renderPanelDia(fechaKey){
+  const [y,m,d] = fechaKey.split('-');
+  const citas   = AGENDA_CITAS.filter(c=>c.fecha===fechaKey);
+  document.getElementById('diaTitulo').textContent = `${d}/${m}/${y}`;
+  document.getElementById('diaCitasList').innerHTML = citas.map(c=>{
+    const tel = (c.leadTel||'').replace(/\D/g,'');
+    const numWa = tel.length===10 ? '52'+tel : tel;
+    const accionBtn = c.tipo==='llamada'
+      ? (tel ? `<a href="tel:+${tel}" class="dia-action-btn llamada">📞 Llamar</a>` : '')
+      : (tel ? `<a href="https://wa.me/${numWa}" target="_blank" class="dia-action-btn mensaje">💬 WhatsApp</a>` : '');
+    return `<div class="dia-cita-item">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+          <span style="font-size:15px">${c.tipo==='llamada'?'📞':'💬'}</span>
+          <div class="dia-cita-nombre">${esc(c.leadNombre||'Sin nombre')}</div>
+        </div>
+        <div class="dia-cita-sub">${c.hora||''} ${c.notas?'· '+esc(c.notas.slice(0,50)):''}</div>
+        ${accionBtn?`<div style="margin-top:8px">${accionBtn}</div>`:''}
+      </div>
+      <button class="dia-cita-del" onclick="deleteCitaById('${c.id}')">✕</button>
+    </div>`;
+  }).join('');
 }
 
-// ── Modal cita ──
+// ── Abrir modal ──
 function openCitaModal(fechaKey){
   CITA_FECHA_SEL = fechaKey;
-  const [y,m,d]  = fechaKey.split('-');
-  const citasDelDia = AGENDA_CITAS.filter(c=>c.fecha===fechaKey);
-
-  if(citasDelDia.length > 0){
-    // Mostrar citas existentes del día + botón agregar
-    const modal = document.getElementById('citaModalOverlay');
-    document.getElementById('citaModalTitle').textContent = `${d}/${m}/${y}`;
-    document.querySelector('.cita-modal').innerHTML = `
-      <div class="cita-modal-title">${d}/${m}/${y}</div>
-      <div class="dia-citas-list">
-        ${citasDelDia.map(c=>{
-        const tel = (c.leadTel||'').replace(/\D/g,'');
-        const accionBtn = c.tipo==='llamada'
-          ? (tel ? `<a href="tel:+${tel}" class="dia-action-btn llamada">📞 Llamar</a>` : '')
-          : (tel ? `<a href="https://wa.me/${tel.length===10?'52'+tel:tel}" target="_blank" class="dia-action-btn mensaje">💬 WhatsApp</a>` : '');
-        return `<div class="dia-cita-item">
-            <div style="flex:1;min-width:0">
-              <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
-                <span style="font-size:15px">${c.tipo==='llamada'?'📞':'💬'}</span>
-                <div class="dia-cita-nombre">${esc(c.leadNombre||'Sin nombre')}</div>
-              </div>
-              <div class="dia-cita-sub">${c.hora||''} ${c.notas?'· '+esc(c.notas.slice(0,50)):''}</div>
-              ${accionBtn ? `<div style="margin-top:8px">${accionBtn}</div>` : ''}
-            </div>
-            <button class="dia-cita-del" onclick="deleteCitaFromDay('${c.id}','${fechaKey}')">✕</button>
-          </div>`;
-      }).join('')}
-      </div>
-      <button class="dia-add-btn" onclick="openNuevaCitaForm('${fechaKey}')">+ Nueva cita este día</button>
-      <div class="cita-modal-footer">
-        <button class="btn-cancel" onclick="closeCitaModal()">Cerrar</button>
-      </div>`;
-    modal.style.display = 'flex';
-  } else {
-    openNuevaCitaForm(fechaKey);
-  }
+  const citas = AGENDA_CITAS.filter(c=>c.fecha===fechaKey);
+  _renderPanelDia(fechaKey);
+  document.getElementById('panelDia').style.display  = '';
+  document.getElementById('panelForm').style.display = 'none';
+  document.getElementById('citaModalOverlay').style.display = 'flex';
 }
 
-function openNuevaCitaForm(fechaKey){
-  CITA_FECHA_SEL = fechaKey;
-  CITA_LEAD_SEL  = null;
-  const [y,m,d]  = fechaKey.split('-');
-  document.querySelector('.cita-modal').innerHTML = `
-    <div class="cita-modal-title" id="citaModalTitle">Nueva cita — ${d}/${m}/${y}</div>
-    <div class="cita-field">
-      <div class="cita-label">Tipo</div>
-      <div class="cita-tipo-row">
-        <button class="cita-tipo-btn active-llamada" id="tipoBtnLlamada" onclick="setCitaTipo('llamada')">📞 Llamada</button>
-        <button class="cita-tipo-btn" id="tipoBtnMensaje" onclick="setCitaTipo('mensaje')">💬 Mensaje</button>
-      </div>
-    </div>
-    <div class="cita-field">
-      <div class="cita-label">Lead</div>
-      <div class="lead-search-wrap">
-        <input class="cita-input" id="citaLeadSearch" placeholder="Buscar por nombre, correo o teléfono…" oninput="searchLeadForCita()" autocomplete="off">
-        <div class="lead-search-results" id="citaLeadResults" style="display:none"></div>
-      </div>
-      <div id="citaLeadSelected" style="display:none; font-size:12px; color:var(--accent); margin-top:4px; font-weight:600"></div>
-    </div>
-    <div class="cita-field">
-      <div class="cita-label">Hora</div>
-      <input class="cita-input" type="time" id="citaHora">
-    </div>
-    <div class="cita-field">
-      <div class="cita-label">Notas</div>
-      <textarea class="cita-input" id="citaNotas" rows="3" placeholder="Detalles de la cita…" style="resize:vertical"></textarea>
-    </div>
-    <div class="cita-modal-footer">
-      <button class="btn-cancel" onclick="closeCitaModal()">Cancelar</button>
-      <button class="btn-save" onclick="saveCita()">Guardar cita</button>
-    </div>`;
+function showPanelForm(){
+  CITA_LEAD_SEL = null;
   CITA_TIPO_SEL = 'llamada';
-  document.getElementById('citaModalOverlay').style.display = 'flex';
-  setTimeout(()=>document.getElementById('citaLeadSearch').focus(),100);
+  const [y,m,d] = CITA_FECHA_SEL.split('-');
+  document.getElementById('formTitulo').textContent = `Nueva cita — ${d}/${m}/${y}`;
+  document.getElementById('citaLeadSearch').value = '';
+  document.getElementById('citaLeadResults').style.display = 'none';
+  document.getElementById('citaLeadSelected').style.display = 'none';
+  document.getElementById('citaHora').value  = '';
+  document.getElementById('citaNotas').value = '';
+  setCitaTipo('llamada');
+  document.getElementById('panelDia').style.display  = 'none';
+  document.getElementById('panelForm').style.display = '';
+  setTimeout(()=>document.getElementById('citaLeadSearch').focus(), 100);
+}
+
+function backToPanelDia(){
+  document.getElementById('panelForm').style.display = 'none';
+  document.getElementById('panelDia').style.display  = '';
 }
 
 function closeCitaModal(){
@@ -3198,7 +3178,7 @@ function setCitaTipo(tipo){
 }
 
 function searchLeadForCita(){
-  const q = document.getElementById('citaLeadSearch').value.trim().toLowerCase();
+  const q   = document.getElementById('citaLeadSearch').value.trim().toLowerCase();
   const res = document.getElementById('citaLeadResults');
   if(q.length < 2){ res.style.display='none'; return; }
   const matches = ALL_LEADS.filter(l=>
@@ -3212,13 +3192,13 @@ function searchLeadForCita(){
       <div class="lead-search-result-name">${esc(l.nombre||'Sin nombre')}</div>
       <div class="lead-search-result-sub">${esc(l.correo||'')} ${l.telefono?'· '+esc(l.telefono):''}</div>
     </div>`).join('');
-  res.style.display = 'block';
+  res.style.display='block';
 }
 
 function selectLeadForCita(fila){
   const l = ALL_LEADS.find(x=>x.fila===fila);
   if(!l) return;
-  CITA_LEAD_SEL = { fila:l.fila, nombre:l.nombre, correo:l.correo, telefono:l.telefono };
+  CITA_LEAD_SEL = {fila:l.fila, nombre:l.nombre, correo:l.correo, telefono:l.telefono};
   document.getElementById('citaLeadSearch').value = l.nombre||'';
   document.getElementById('citaLeadResults').style.display = 'none';
   const sel = document.getElementById('citaLeadSelected');
@@ -3231,26 +3211,23 @@ async function saveCita(){
   const hora  = document.getElementById('citaHora').value;
   const notas = document.getElementById('citaNotas').value.trim();
   if(!hora){ showToast('Indica la hora',true); return; }
-
-  const btn = document.querySelector('.cita-modal-footer .btn-save');
+  const btn = document.getElementById('btnSaveCita');
   btn.disabled=true; btn.textContent='Guardando…';
-
   try {
     await _fbDB.collection('rb_agenda').add({
       fecha:      CITA_FECHA_SEL,
-      hora:       hora,
+      hora,
       tipo:       CITA_TIPO_SEL,
       leadFila:   CITA_LEAD_SEL.fila,
       leadNombre: CITA_LEAD_SEL.nombre||'',
       leadCorreo: CITA_LEAD_SEL.correo||'',
       leadTel:    CITA_LEAD_SEL.telefono||'',
-      notas:      notas,
+      notas,
       usuario:    SESSION.usuario||'',
       creadoEn:   new Date().toISOString()
     });
     showToast('Cita guardada');
-    await renderAgenda();
-    openCitaModal(CITA_FECHA_SEL);
+    backToPanelDia(); // onSnapshot actualiza automáticamente
   } catch(e){
     showToast('Error al guardar',true);
   } finally {
@@ -3258,28 +3235,12 @@ async function saveCita(){
   }
 }
 
-async function deleteCita(id){
+async function deleteCitaById(id){
   if(!confirm('¿Eliminar esta cita?')) return;
   try {
     await _fbDB.collection('rb_agenda').doc(id).delete();
     showToast('Cita eliminada');
-    renderAgenda();
-  } catch(e){ showToast('Error al eliminar',true); }
-}
-
-async function deleteCitaFromDay(id, fechaKey){
-  if(!confirm('¿Eliminar esta cita?')) return;
-  try {
-    await _fbDB.collection('rb_agenda').doc(id).delete();
-    AGENDA_CITAS = AGENDA_CITAS.filter(c=>c.id!==id);
-    showToast('Cita eliminada');
-    const restantes = AGENDA_CITAS.filter(c=>c.fecha===fechaKey);
-    if(restantes.length > 0){
-      openCitaModal(fechaKey);
-    } else {
-      closeCitaModal();
-      renderAgenda();
-    }
+    // onSnapshot actualiza AGENDA_CITAS y el panel automáticamente
   } catch(e){ showToast('Error al eliminar',true); }
 }
 
