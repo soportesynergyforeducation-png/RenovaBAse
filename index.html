@@ -2737,6 +2737,10 @@ function openDetailPanel(l, panelEl) {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           Copiar datos del contacto
         </button>
+        <button class="cta-copy" onclick="agendarDesdePerfil(${l.fila})">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Agendar cita
+        </button>
       </div>
 
     </div>
@@ -3169,6 +3173,8 @@ function backToPanelDia(){
 
 function closeCitaModal(){
   document.getElementById('citaModalOverlay').style.display = 'none';
+  document.getElementById('btnBackDia').style.display  = '';
+  document.getElementById('btnCancelForm').textContent = 'Cancelar';
 }
 
 function setCitaTipo(tipo){
@@ -3259,6 +3265,35 @@ function goToLead(fila){
     const row=document.getElementById('row-'+fila);
     if(row) row.scrollIntoView({behavior:'smooth',block:'center'});
   },150);
+}
+
+function agendarDesdePerfil(fila){
+  const l = ALL_LEADS.find(x=>x.fila===fila);
+  if(!l) return;
+  // Fecha default: hoy en formato YYYY-MM-DD
+  const hoy = new Date();
+  const fechaKey = hoy.getFullYear()+'-'+String(hoy.getMonth()+1).padStart(2,'0')+'-'+String(hoy.getDate()).padStart(2,'0');
+  CITA_FECHA_SEL = fechaKey;
+  CITA_LEAD_SEL  = {fila:l.fila, nombre:l.nombre, correo:l.correo, telefono:l.telefono};
+  CITA_TIPO_SEL  = 'llamada';
+  // Abrir formulario directo con lead pre-cargado
+  const [y,m,d] = fechaKey.split('-');
+  document.getElementById('formTitulo').textContent = `Nueva cita — ${d}/${m}/${y}`;
+  document.getElementById('citaLeadSearch').value = l.nombre||'';
+  document.getElementById('citaLeadResults').style.display = 'none';
+  const sel = document.getElementById('citaLeadSelected');
+  sel.textContent = '✓ '+esc(l.nombre)+(l.correo?' — '+l.correo:'');
+  sel.style.display = 'block';
+  document.getElementById('citaHora').value  = '';
+  document.getElementById('citaNotas').value = '';
+  setCitaTipo('llamada');
+  document.getElementById('panelDia').style.display  = 'none';
+  document.getElementById('panelForm').style.display = '';
+  // Ocultar botón volver (venimos del perfil, no del panel día)
+  document.getElementById('btnBackDia').style.display   = 'none';
+  document.getElementById('btnCancelForm').textContent  = 'Cancelar';
+  document.getElementById('citaModalOverlay').style.display = 'flex';
+  setTimeout(()=>document.getElementById('citaHora').focus(), 100);
 }
 
 // ══ USUARIOS ══
