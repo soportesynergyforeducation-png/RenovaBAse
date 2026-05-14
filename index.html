@@ -1965,8 +1965,9 @@ function applyFilters(resetPage=true){
     const orden = (document.getElementById('filterOrden')||{}).value || 'vencido-asc';
     if(orden === 'score-desc'){ return getScore(b).score - getScore(a).score; }
     if(orden === 'score-asc'){  return getScore(a).score - getScore(b).score; }
-    const da = a.vencimiento ? new Date(a.vencimiento) : new Date('9999-12-31');
-    const db = b.vencimiento ? new Date(b.vencimiento) : new Date('9999-12-31');
+    const parseFecha = v => { if(!v) return new Date('9999-12-31'); const [d,m,y]=v.split('/'); return new Date(y,m-1,d); };
+    const da = parseFecha(a.vencimiento);
+    const db = parseFecha(b.vencimiento);
     return orden === 'vencido-desc' ? db - da : da - db;
   });
   if(resetPage) CURRENT_PAGE=0;
