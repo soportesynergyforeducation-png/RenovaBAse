@@ -3180,13 +3180,21 @@ function setCitaTipo(tipo){
 function searchLeadForCita(){
   const q   = document.getElementById('citaLeadSearch').value.trim().toLowerCase();
   const res = document.getElementById('citaLeadResults');
-  if(q.length < 2){ res.style.display='none'; return; }
-  const matches = ALL_LEADS.filter(l=>
-    (l.nombre||'').toLowerCase().includes(q)||
-    (l.correo||'').toLowerCase().includes(q)||
-    (l.telefono||'').replace(/\D/g,'').includes(q.replace(/\D/g,''))
-  ).slice(0,8);
-  if(!matches.length){ res.style.display='none'; return; }
+  if(!q){ res.style.display='none'; return; }
+  // Buscar en todos los leads disponibles, incluyendo los que no pasan el filtro activo
+  const pool = ALL_LEADS.length ? ALL_LEADS : FILTERED;
+  const qTel = q.replace(/\D/g,'');
+  const matches = pool.filter(l=>{
+    if((l.nombre||'').toLowerCase().includes(q)) return true;
+    if((l.correo||'').toLowerCase().includes(q)) return true;
+    if(qTel && (l.telefono||'').replace(/\D/g,'').includes(qTel)) return true;
+    return false;
+  }).slice(0,10);
+  if(!matches.length){
+    res.innerHTML='<div class="lead-search-result" style="color:var(--text3);cursor:default">Sin resultados</div>';
+    res.style.display='block';
+    return;
+  }
   res.innerHTML = matches.map(l=>`
     <div class="lead-search-result" onclick="selectLeadForCita(${l.fila})">
       <div class="lead-search-result-name">${esc(l.nombre||'Sin nombre')}</div>
