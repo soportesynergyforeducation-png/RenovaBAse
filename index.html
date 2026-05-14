@@ -582,7 +582,7 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
 .cal-dot {
   width:6px; height:6px; border-radius:50%; flex-shrink:0;
 }
-.cal-dot.llamada { background:var(--accent) }
+.cal-dot.llamada { background:var(--fire) }
 .cal-dot.mensaje  { background:var(--go) }
 .cal-count { font-size:9px; color:var(--text3); margin-top:2px }
 
@@ -2986,9 +2986,9 @@ async function loadCitasDelMes(year, month){
   const hasta  = year+'-'+String(month+1).padStart(2,'0')+'-'+String(new Date(year,month+1,0).getDate()).padStart(2,'0');
   try {
     const snap = await _fbDB.collection('rb_agenda')
-      .where('fecha','>=',desde).where('fecha','<=',hasta)
-      .orderBy('fecha').orderBy('hora').get();
-    AGENDA_CITAS = snap.docs.map(d=>({id:d.id,...d.data()}));
+      .where('fecha','>=',desde).where('fecha','<=',hasta).get();
+    AGENDA_CITAS = snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=> a.fecha===b.fecha ? (a.hora||'').localeCompare(b.hora||'') : a.fecha.localeCompare(b.fecha));
   } catch(e){ AGENDA_CITAS=[]; }
 }
 
@@ -3061,7 +3061,7 @@ async function renderAgenda(){
       </div>
       ${citas.map(c=>`
         <div class="agenda-item">
-          <div class="agenda-avatar" style="background:${c.tipo==='llamada'?'var(--accent)':'var(--go)'}">
+          <div class="agenda-avatar" style="background:${c.tipo==='llamada'?'var(--fire)':'var(--go)'}">
             ${c.tipo==='llamada'?'📞':'💬'}
           </div>
           <div style="flex:1;min-width:0">
