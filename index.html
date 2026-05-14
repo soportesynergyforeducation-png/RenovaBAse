@@ -1695,11 +1695,13 @@ async function doLogin() {
       document.getElementById('bulkSep').style.display='';
       document.getElementById('bulkAbeja').style.display='';
       document.getElementById('bulkApply').style.display='';
+      document.getElementById('filterOrden').value='vencido-asc';
     } else {
       document.getElementById('adminSideDiv').style.display='none';
       document.getElementById('adminSideSection').style.display='none';
       document.getElementById('filterAbeja').style.display='none';
       document.getElementById('filterTermAbeja').style.display='none';
+      document.getElementById('filterOrden').value='score-desc';
       document.getElementById('sepTermAbeja').style.display='none';
       document.getElementById('bulkSep').style.display='none';
       document.getElementById('bulkAbeja').style.display='none';
