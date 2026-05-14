@@ -1204,6 +1204,12 @@ async function initFirebaseRT(){
           </div>
           <select class="filter-select" id="filterMembresia" onchange="applyFilters()"><option value="">Membresía</option></select>
           <select class="filter-select" id="filterAbeja" onchange="applyFilters()" style="display:none"><option value="">Abeja</option></select>
+          <select class="filter-select" id="filterOrden" onchange="applyFilters()" title="Ordenar por">
+            <option value="vencido-asc">📅 Más vencidos primero</option>
+            <option value="vencido-desc">📅 Más vigentes primero</option>
+            <option value="score-desc">⭐ Mayor score primero</option>
+            <option value="score-asc">⭐ Menor score primero</option>
+          </select>
           <div class="toolbar-right">
             <button class="btn-sm" onclick="exportCSV()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -1954,8 +1960,12 @@ function applyFilters(resetPage=true){
     }
     return true;
   }).sort((a,b)=>{
-    const sa=getScore(a).score; const sb=getScore(b).score;
-    return sb-sa;
+    const orden = (document.getElementById('filterOrden')||{}).value || 'vencido-asc';
+    if(orden === 'score-desc'){ return getScore(b).score - getScore(a).score; }
+    if(orden === 'score-asc'){  return getScore(a).score - getScore(b).score; }
+    const da = a.vencimiento ? new Date(a.vencimiento) : new Date('9999-12-31');
+    const db = b.vencimiento ? new Date(b.vencimiento) : new Date('9999-12-31');
+    return orden === 'vencido-desc' ? db - da : da - db;
   });
   if(resetPage) CURRENT_PAGE=0;
   renderLeads();
