@@ -1344,7 +1344,9 @@ async function initFirebaseRT(){
 </script>
 
 <!-- ══ APP ══ -->
-<div id="appShell">
+<canvas id="appNet" style="position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:0;transition:opacity 1s ease"></canvas>
+
+<div id="appShell" style="position:relative;z-index:1">
   <header class="header">
     <button class="hdr-btn menu-toggle" onclick="toggleSidebar()">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -4678,6 +4680,117 @@ async function saveTarifasPanel() {
   </div>
 </div>
 <div id="tarifasPanelOverlay" onclick="closeTarifasPanel()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.25);z-index:199"></div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('appNet');
+  if(!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var nodes = [], W, H, animId;
+  var NODE_COUNT = 55, MAX_DIST = 160;
+
+  function resize(){
+    W = canvas.width  = window.innerWidth  * devicePixelRatio;
+    H = canvas.height = window.innerHeight * devicePixelRatio;
+    canvas.style.width  = window.innerWidth  + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+  }
+
+  function mkNode(){
+    return {
+      x:Math.random()*W, y:Math.random()*H,
+      vx:(Math.random()-.5)*0.35, vy:(Math.random()-.5)*0.35,
+      r:Math.random()*1.5+1
+    };
+  }
+
+  function init(){
+    resize();
+    nodes = [];
+    for(var i=0;i<NODE_COUNT;i++) nodes.push(mkNode());
+  }
+
+  function getThemeColors(){
+    var dark = document.documentElement.getAttribute('data-theme')==='dark';
+    return dark
+      ? { node:'rgba(30,111,255,0.5)',  line:'rgba(30,111,255,' }
+      : { node:'rgba(30,64,175,0.18)',  line:'rgba(30,64,175,' };
+  }
+
+  function getOpacity(){
+    var dark = document.documentElement.getAttribute('data-theme')==='dark';
+    return dark ? '0.35' : '0.18';
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    var c = getThemeColors();
+    var scale = devicePixelRatio;
+    var maxD = MAX_DIST * scale;
+
+    for(var i=0;i<nodes.length;i++){
+      for(var j=i+1;j<nodes.length;j++){
+        var dx=nodes[i].x-nodes[j].x, dy=nodes[i].y-nodes[j].y;
+        var d=Math.sqrt(dx*dx+dy*dy);
+        if(d<maxD){
+          var alpha=(1-d/maxD)*0.4;
+          ctx.beginPath();
+          ctx.strokeStyle=c.line+alpha+')';
+          ctx.lineWidth=0.7*scale;
+          ctx.moveTo(nodes[i].x,nodes[i].y);
+          ctx.lineTo(nodes[j].x,nodes[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+    for(var i=0;i<nodes.length;i++){
+      ctx.beginPath();
+      ctx.arc(nodes[i].x,nodes[i].y,nodes[i].r*scale,0,Math.PI*2);
+      ctx.fillStyle=c.node;
+      ctx.fill();
+    }
+  }
+
+  function update(){
+    for(var i=0;i<nodes.length;i++){
+      var n=nodes[i];
+      n.x+=n.vx; n.y+=n.vy;
+      if(n.x<0||n.x>W) n.vx*=-1;
+      if(n.y<0||n.y>H) n.vy*=-1;
+    }
+  }
+
+  function loop(){ update(); draw(); animId=requestAnimationFrame(loop); }
+
+  // Mostrar/ocultar según tema
+  function syncOpacity(){
+    canvas.style.opacity = getOpacity();
+  }
+
+  // Arrancar cuando el app shell se hace visible
+  var observer = new MutationObserver(function(muts){
+    muts.forEach(function(m){
+      if(m.attributeName==='style'||m.attributeName==='class'){
+        var shell = document.getElementById('appShell');
+        var visible = shell && (shell.style.display!=='none' && shell.classList.contains('visible'));
+        if(visible){
+          canvas.style.opacity = getOpacity();
+          if(!animId){ init(); loop(); }
+        }
+      }
+    });
+  });
+  var shell = document.getElementById('appShell');
+  if(shell) observer.observe(shell, {attributes:true});
+
+  // Actualizar colores al cambiar tema
+  var themeObserver = new MutationObserver(syncOpacity);
+  themeObserver.observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
+
+  window.addEventListener('resize', function(){ resize(); });
+  init();
+})();
+</script>
 
 </body>
 </html>
