@@ -1927,6 +1927,7 @@ function showView(name) {
   closeSidebar();
   if (name==='usuarios'&&SESSION.rol==='admin') loadUsuarios();
   if (name==='agenda') renderAgenda();
+  else if (_agendaUnsub) { _agendaUnsub(); _agendaUnsub=null; }
   if (name==='terminos') {
     renderComisionesDash();
     if (ALL_LEADS.length > 0) {
