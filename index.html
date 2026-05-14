@@ -1039,6 +1039,16 @@ async function initFirebaseRT(){
         var key = change.doc.id;
         if(!SCORES[key]) SCORES[key] = {};
         Object.assign(SCORES[key], d);
+        // Mantener caché local sincronizado
+        try {
+          var raw = localStorage.getItem(SCORES_CACHE_KEY);
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            parsed.data[key] = Object.assign(parsed.data[key]||{}, d);
+            parsed.ts = Date.now();
+            localStorage.setItem(SCORES_CACHE_KEY, JSON.stringify(parsed));
+          }
+        } catch(e) {}
         var lead = ALL_LEADS.find(function(l){ return scoreKey(l.correo)===key; });
         if(lead){
           if(d.termino)        lead.termino        = d.termino;
@@ -1642,6 +1652,16 @@ async function saveScoreToFirebase(key, st) {
     if (st.com3)           doc.com3           = st.com3;
     if (st.com4)           doc.com4           = st.com4;
     await _fbDB.collection('rb_scores').doc(key).set(doc, { merge: true });
+    // Actualizar caché local con este doc para no invalidarlo completo
+    try {
+      const raw = localStorage.getItem(SCORES_CACHE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        parsed.data[key] = Object.assign(parsed.data[key]||{}, doc);
+        parsed.ts = Date.now();
+        localStorage.setItem(SCORES_CACHE_KEY, JSON.stringify(parsed));
+      }
+    } catch(e) {}
   } catch(e) { console.warn('saveScore error:', e); }
 }
 
@@ -1649,7 +1669,62 @@ async function loadScoresFromFirebase(leads) {
   // No-op — scores se cargan de forma lazy al abrir cada lead
 }
 
+const SCORES_CACHE_KEY = 'rb_scores_cache';
+const SCORES_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+
+function _scoresGuardarCache(map) {
+  try {
+    localStorage.setItem(SCORES_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: map }));
+  } catch(e) {}
+}
+
+function _scoresLeerCache() {
+  try {
+    const raw = localStorage.getItem(SCORES_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Date.now() - parsed.ts > SCORES_CACHE_TTL) return null;
+    return parsed.data;
+  } catch(e) { return null; }
+}
+
+function _scoresAplicarMap(map) {
+  ALL_LEADS.forEach(l => {
+    const key = scoreKey(l.correo);
+    if (!map[key]) return;
+    const s = map[key];
+    if (s.termino && !l.termino) l.termino        = s.termino;
+    if (s.terminoTipo)           l.terminoTipo    = s.terminoTipo;
+    if (s.pagoEstado)            l.pagoEstado     = s.pagoEstado;
+    if (s.pagoFechaVerif)        l.pagoFechaVerif = s.pagoFechaVerif;
+    if (s.comprobante)           l.comprobante    = s.comprobante;
+    if (s.estado)                l.estado         = s.estado;
+    if (s.notas)                 l.notas          = s.notas;
+    if (s.com1)                  l.com1           = s.com1;
+    if (s.com2)                  l.com2           = s.com2;
+    if (s.com3)                  l.com3           = s.com3;
+    if (s.com4)                  l.com4           = s.com4;
+    if (!SCORES[key]) SCORES[key] = {};
+    Object.assign(SCORES[key], s);
+  });
+}
+
 async function loadAllTerminoTipos() {
+  if (!_fbDB) return;
+
+  // Usar caché si está fresco — cero lecturas a Firestore
+  const cached = _scoresLeerCache();
+  if (cached) {
+    _scoresAplicarMap(cached);
+    // Refrescar en background sin bloquear el render
+    _scoresRefrescarFirestore();
+    return;
+  }
+
+  await _scoresRefrescarFirestore();
+}
+
+async function _scoresRefrescarFirestore() {
   if (!_fbDB) return;
   try {
     const snap = await _fbDB.collection('rb_scores').get();
@@ -1657,31 +1732,15 @@ async function loadAllTerminoTipos() {
     snap.forEach(doc => {
       const d = doc.data();
       map[doc.id] = {
-        score: d.score, termino: d.termino||'', terminoTipo: d.terminoTipo||'', pagoEstado: d.pagoEstado||'',
-        pagoFechaVerif: d.pagoFechaVerif||'', comprobante: d.comprobante||'', fila: d.fila, hist: d.hist||[],
+        score: d.score, termino: d.termino||'', terminoTipo: d.terminoTipo||'',
+        pagoEstado: d.pagoEstado||'', pagoFechaVerif: d.pagoFechaVerif||'',
+        comprobante: d.comprobante||'', fila: d.fila, hist: d.hist||[],
         estado: d.estado||'', notas: d.notas||'',
         com1: d.com1||'', com2: d.com2||'', com3: d.com3||'', com4: d.com4||''
       };
     });
-    ALL_LEADS.forEach(l => {
-      const key = scoreKey(l.correo);
-      if (map[key]) {
-        if (map[key].termino && !l.termino) l.termino = map[key].termino;
-        if (map[key].terminoTipo)    l.terminoTipo    = map[key].terminoTipo;
-        if (map[key].pagoEstado)     l.pagoEstado     = map[key].pagoEstado;
-        if (map[key].pagoFechaVerif) l.pagoFechaVerif = map[key].pagoFechaVerif;
-        if (map[key].comprobante)    l.comprobante    = map[key].comprobante;
-        if (map[key].estado)         l.estado         = map[key].estado;
-        if (map[key].notas)          l.notas          = map[key].notas;
-        if (map[key].com1)           l.com1           = map[key].com1;
-        if (map[key].com2)           l.com2           = map[key].com2;
-        if (map[key].com3)           l.com3           = map[key].com3;
-        if (map[key].com4)           l.com4           = map[key].com4;
-        if (!SCORES[key]) SCORES[key] = {};
-        Object.assign(SCORES[key], map[key]);
-        // PENDIENTES_MAP se llena desde el onSnapshot de rb_pendientes/estado (no aquí)
-      }
-    });
+    _scoresGuardarCache(map);
+    _scoresAplicarMap(map);
   } catch(e) { console.warn('loadAllTerminoTipos error:', e); }
 }
 
