@@ -563,13 +563,12 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
 .cal-cell {
   min-height:80px; padding:6px; border-right:1px solid var(--border);
   border-bottom:1px solid var(--border); position:relative;
-  transition:background .1s; cursor:default;
+  transition:background .1s; cursor:pointer;
 }
 .cal-cell:nth-child(7n) { border-right:none }
-.cal-cell.other-month { opacity:.35 }
+.cal-cell.other-month { opacity:.35; cursor:default; pointer-events:none }
 .cal-cell.today { background:var(--accent-lo) }
-.cal-cell.has-events { cursor:pointer }
-.cal-cell.has-events:hover { background:var(--bg) }
+.cal-cell:not(.other-month):hover { background:var(--bg) }
 .cal-day-num {
   font-size:11px; font-weight:600; color:var(--text2);
   margin-bottom:4px; font-variant-numeric:tabular-nums;
@@ -579,15 +578,12 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
   border-radius:50%; display:flex; align-items:center; justify-content:center;
   font-size:10px;
 }
-.cal-dots { display:flex; flex-wrap:wrap; gap:2px }
+.cal-dots { display:flex; flex-wrap:wrap; gap:2px; margin-top:2px }
 .cal-dot {
   width:6px; height:6px; border-radius:50%; flex-shrink:0;
 }
-.cal-dot.urgente   { background:var(--orange) }
-.cal-dot.vence-hoy { background:var(--purple) }
-.cal-dot.por-vencer { background:var(--warn) }
-.cal-dot.vigente   { background:var(--go) }
-.cal-dot.vencido   { background:var(--fire) }
+.cal-dot.llamada { background:var(--accent) }
+.cal-dot.mensaje  { background:var(--go) }
 .cal-count { font-size:9px; color:var(--text3); margin-top:2px }
 
 .agenda-list-title { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); margin-bottom:12px }
@@ -611,7 +607,69 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
   font-size:11px; font-weight:700; color:white;
 }
 .agenda-name { font-size:13px; font-weight:600; flex:1 }
-.agenda-mem { font-size:11px; color:var(--text2) }
+.agenda-meta { font-size:11px; color:var(--text2) }
+.agenda-tipo-badge {
+  font-size:10px; font-weight:600; padding:2px 7px; border-radius:20px;
+}
+.agenda-tipo-badge.llamada { background:var(--accent-lo); color:var(--accent) }
+.agenda-tipo-badge.mensaje  { background:var(--go-lo,#e6f9f0); color:var(--go) }
+.agenda-item-actions { display:flex; gap:6px; align-items:center }
+.agenda-del-btn {
+  background:none; border:none; cursor:pointer; color:var(--text3);
+  padding:2px 4px; border-radius:4px; font-size:13px; line-height:1;
+  transition:color .15s;
+}
+.agenda-del-btn:hover { color:var(--fire) }
+
+/* Modal cita */
+.cita-modal-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:900;
+  display:flex; align-items:center; justify-content:center;
+}
+.cita-modal {
+  background:var(--surface); border-radius:var(--r); width:420px; max-width:95vw;
+  box-shadow:var(--shadow2); padding:24px; display:flex; flex-direction:column; gap:16px;
+}
+.cita-modal-title { font-family:var(--serif); font-size:18px; font-style:italic }
+.cita-field { display:flex; flex-direction:column; gap:5px }
+.cita-label { font-size:11px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:.05em }
+.cita-input {
+  padding:8px 10px; border:1px solid var(--border2); border-radius:var(--r2);
+  font-size:13px; font-family:var(--font); background:var(--bg); color:var(--text);
+  outline:none; transition:border .15s;
+}
+.cita-input:focus { border-color:var(--accent) }
+.cita-tipo-row { display:flex; gap:8px }
+.cita-tipo-btn {
+  flex:1; padding:8px; border:1px solid var(--border2); border-radius:var(--r2);
+  font-size:12px; font-weight:600; font-family:var(--font); cursor:pointer;
+  background:var(--bg); color:var(--text2); transition:all .15s;
+}
+.cita-tipo-btn.active-llamada { background:var(--accent-lo); border-color:var(--accent); color:var(--accent) }
+.cita-tipo-btn.active-mensaje  { background:var(--go-lo,#e6f9f0); border-color:var(--go); color:var(--go) }
+.lead-search-wrap { position:relative }
+.lead-search-results {
+  position:absolute; top:100%; left:0; right:0; z-index:10;
+  background:var(--surface); border:1px solid var(--border2); border-radius:var(--r2);
+  max-height:180px; overflow-y:auto; box-shadow:var(--shadow2); margin-top:2px;
+}
+.lead-search-result {
+  padding:8px 12px; cursor:pointer; font-size:13px; transition:background .1s;
+}
+.lead-search-result:hover { background:var(--bg) }
+.lead-search-result-name { font-weight:600 }
+.lead-search-result-sub { font-size:11px; color:var(--text3) }
+.cita-modal-footer { display:flex; gap:8px; justify-content:flex-end; margin-top:4px }
+.cita-modal-footer .btn-cancel {
+  padding:8px 16px; border:1px solid var(--border2); border-radius:var(--r2);
+  background:none; font-family:var(--font); font-size:13px; cursor:pointer; color:var(--text2);
+}
+.cita-modal-footer .btn-save {
+  padding:8px 18px; border:none; border-radius:var(--r2);
+  background:var(--accent); color:white; font-family:var(--font);
+  font-size:13px; font-weight:600; cursor:pointer; transition:opacity .15s;
+}
+.cita-modal-footer .btn-save:hover { opacity:.88 }
 
 /* ══════════════════════════════════════════
    USUARIOS
@@ -1267,8 +1325,42 @@ async function initFirebaseRT(){
             </div>
             <div class="cal-grid" id="calGrid"></div>
           </div>
-          <div class="agenda-list-title" id="agendaListTitle">Vencimientos del mes</div>
+          <div class="agenda-list-title" id="agendaListTitle"></div>
           <div id="agendaList"></div>
+        </div>
+      </div>
+
+      <!-- MODAL CITA -->
+      <div class="cita-modal-overlay" id="citaModalOverlay" style="display:none" onclick="if(event.target===this)closeCitaModal()">
+        <div class="cita-modal">
+          <div class="cita-modal-title" id="citaModalTitle">Nueva cita</div>
+          <div class="cita-field">
+            <div class="cita-label">Tipo</div>
+            <div class="cita-tipo-row">
+              <button class="cita-tipo-btn" id="tipoBtnLlamada" onclick="setCitaTipo('llamada')">📞 Llamada</button>
+              <button class="cita-tipo-btn" id="tipoBtnMensaje" onclick="setCitaTipo('mensaje')">💬 Mensaje</button>
+            </div>
+          </div>
+          <div class="cita-field">
+            <div class="cita-label">Lead</div>
+            <div class="lead-search-wrap">
+              <input class="cita-input" id="citaLeadSearch" placeholder="Buscar por nombre, correo o teléfono…" oninput="searchLeadForCita()" autocomplete="off">
+              <div class="lead-search-results" id="citaLeadResults" style="display:none"></div>
+            </div>
+            <div id="citaLeadSelected" style="display:none; font-size:12px; color:var(--accent); margin-top:4px; font-weight:600"></div>
+          </div>
+          <div class="cita-field">
+            <div class="cita-label">Hora</div>
+            <input class="cita-input" type="time" id="citaHora">
+          </div>
+          <div class="cita-field">
+            <div class="cita-label">Notas</div>
+            <textarea class="cita-input" id="citaNotas" rows="3" placeholder="Detalles de la cita…" style="resize:vertical"></textarea>
+          </div>
+          <div class="cita-modal-footer">
+            <button class="btn-cancel" onclick="closeCitaModal()">Cancelar</button>
+            <button class="btn-save" onclick="saveCita()">Guardar cita</button>
+          </div>
         </div>
       </div>
 
@@ -2878,111 +2970,212 @@ function exportCSV(){
 // ══ AGENDA ══
 const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
-function agendaPrev(){AGENDA_DATE.setMonth(AGENDA_DATE.getMonth()-1);renderAgenda();}
-function agendaNext(){AGENDA_DATE.setMonth(AGENDA_DATE.getMonth()+1);renderAgenda();}
-function agendaToday(){AGENDA_DATE=new Date();renderAgenda();}
+// ══ AGENDA — estado ══
+let AGENDA_CITAS = [];   // citas del mes cargado desde Firestore
+let CITA_FECHA_SEL = ''; // YYYY-MM-DD seleccionada en el modal
+let CITA_TIPO_SEL  = 'llamada';
+let CITA_LEAD_SEL  = null; // { fila, nombre, correo, telefono }
 
-function renderAgenda(){
-  const year=AGENDA_DATE.getFullYear();
-  const month=AGENDA_DATE.getMonth();
-  document.getElementById('agendaMonthTitle').textContent=MESES[month]+' '+year;
+function agendaPrev(){ AGENDA_DATE.setMonth(AGENDA_DATE.getMonth()-1); renderAgenda(); }
+function agendaNext(){ AGENDA_DATE.setMonth(AGENDA_DATE.getMonth()+1); renderAgenda(); }
+function agendaToday(){ AGENDA_DATE=new Date(); renderAgenda(); }
 
-  // Construir mapa de vencimientos
-  const vencMap={};
-  ALL_LEADS.forEach(l=>{
-    if(!l.vencimiento)return;
-    const parts=l.vencimiento.split('/');
-    if(parts.length!==3)return;
-    const key=parts[2]+'-'+parts[1]+'-'+parts[0]; // YYYY-MM-DD
-    if(!vencMap[key])vencMap[key]=[];
-    vencMap[key].push(l);
+// ── Cargar citas del mes desde Firestore ──
+async function loadCitasDelMes(year, month){
+  const desde = year+'-'+String(month+1).padStart(2,'0')+'-01';
+  const hasta  = year+'-'+String(month+1).padStart(2,'0')+'-'+String(new Date(year,month+1,0).getDate()).padStart(2,'0');
+  try {
+    const snap = await _fbDB.collection('rb_agenda')
+      .where('fecha','>=',desde).where('fecha','<=',hasta)
+      .orderBy('fecha').orderBy('hora').get();
+    AGENDA_CITAS = snap.docs.map(d=>({id:d.id,...d.data()}));
+  } catch(e){ AGENDA_CITAS=[]; }
+}
+
+async function renderAgenda(){
+  const year  = AGENDA_DATE.getFullYear();
+  const month = AGENDA_DATE.getMonth();
+  document.getElementById('agendaMonthTitle').textContent = MESES[month]+' '+year;
+  document.getElementById('agendaList').innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+
+  await loadCitasDelMes(year, month);
+
+  // Mapa de citas por día
+  const citaMap = {};
+  AGENDA_CITAS.forEach(c=>{
+    if(!citaMap[c.fecha]) citaMap[c.fecha]=[];
+    citaMap[c.fecha].push(c);
   });
 
-  // Calcular días del calendario
-  const firstDay=new Date(year,month,1);
-  const lastDay=new Date(year,month+1,0);
-  const startDow=firstDay.getDay();
-  const today=new Date(); today.setHours(0,0,0,0);
+  // Generar calendario
+  const firstDay = new Date(year,month,1);
+  const lastDay  = new Date(year,month+1,0);
+  const startDow = firstDay.getDay();
+  const today    = new Date(); today.setHours(0,0,0,0);
+  const prevLast = new Date(year,month,0).getDate();
 
-  // Generar celdas
-  let cells='';
-  // Días del mes anterior
-  const prevLast=new Date(year,month,0).getDate();
+  let cells = '';
   for(let i=startDow-1;i>=0;i--){
     cells+=`<div class="cal-cell other-month"><div class="cal-day-num">${prevLast-i}</div></div>`;
   }
-  // Días del mes
   for(let d=1;d<=lastDay.getDate();d++){
-    const date=new Date(year,month,d);
-    const keyStr=year+'-'+String(month+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-    const isToday=date.getTime()===today.getTime();
-    const events=vencMap[keyStr]||[];
-    const hasEv=events.length>0;
-    const dots=events.slice(0,6).map(l=>`<div class="cal-dot ${l.estadoVigencia}"></div>`).join('');
-    cells+=`<div class="cal-cell${isToday?' today':''}${hasEv?' has-events':''}" ${hasEv?`onclick="agendaScrollToDate('${keyStr}')"`:''}>`+
-      (isToday?`<div class="cal-day-num"><span>${d}</span></div>`:`<div class="cal-day-num">${d}</div>`)+
-      (hasEv?`<div class="cal-dots">${dots}</div><div class="cal-count">${events.length}</div>`:'')+
-      `</div>`;
+    const keyStr = year+'-'+String(month+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    const isToday = new Date(year,month,d).getTime()===today.getTime();
+    const citas   = citaMap[keyStr]||[];
+    const dots    = citas.slice(0,6).map(c=>`<div class="cal-dot ${c.tipo}"></div>`).join('');
+    cells+=`<div class="cal-cell${isToday?' today':''}" onclick="openCitaModal('${keyStr}')">
+      ${isToday?`<div class="cal-day-num"><span>${d}</span></div>`:`<div class="cal-day-num">${d}</div>`}
+      ${citas.length?`<div class="cal-dots">${dots}</div><div class="cal-count">${citas.length} cita${citas.length!==1?'s':''}</div>`:''}
+    </div>`;
   }
-  // Días del siguiente mes
-  const remaining=(7-((startDow+lastDay.getDate())%7))%7;
+  const remaining = (7-((startDow+lastDay.getDate())%7))%7;
   for(let d=1;d<=remaining;d++){
     cells+=`<div class="cal-cell other-month"><div class="cal-day-num">${d}</div></div>`;
   }
-  document.getElementById('calGrid').innerHTML=cells;
+  document.getElementById('calGrid').innerHTML = cells;
 
-  // Lista de vencimientos del mes
-  const monthLeads=ALL_LEADS.filter(l=>{
-    if(!l.vencimiento)return false;
-    const p=l.vencimiento.split('/');
-    if(p.length!==3)return false;
-    return parseInt(p[1])===month+1&&parseInt(p[2])===year;
-  }).sort((a,b)=>{
-    const pa=a.vencimiento.split('/'); const pb=b.vencimiento.split('/');
-    return new Date(pa[2],pa[1]-1,pa[0])-new Date(pb[2],pb[1]-1,pb[0]);
-  });
-
-  document.getElementById('agendaListTitle').textContent=
-    `Vencimientos en ${MESES[month]} ${year} (${monthLeads.length})`;
-
-  if(!monthLeads.length){
-    document.getElementById('agendaList').innerHTML='<div class="empty-state"><div class="empty-title">Sin vencimientos este mes</div></div>';
+  // Lista del mes
+  const listTitle = document.getElementById('agendaListTitle');
+  if(!AGENDA_CITAS.length){
+    listTitle.textContent = '';
+    document.getElementById('agendaList').innerHTML =
+      '<div class="empty-state"><div class="empty-title">Sin citas este mes</div><div class="empty-sub">Haz clic en un día para agendar</div></div>';
     return;
   }
+  listTitle.textContent = `Citas en ${MESES[month]} ${year} (${AGENDA_CITAS.length})`;
 
   // Agrupar por fecha
-  const groups={};
-  monthLeads.forEach(l=>{
-    const key=l.vencimiento;
-    if(!groups[key])groups[key]=[];
-    groups[key].push(l);
+  const groups = {};
+  AGENDA_CITAS.forEach(c=>{
+    if(!groups[c.fecha]) groups[c.fecha]=[];
+    groups[c.fecha].push(c);
   });
 
-  document.getElementById('agendaList').innerHTML=Object.entries(groups).map(([date,leads])=>`
-    <div class="agenda-group" id="agdate-${date.replace(/\//g,'-')}">
+  document.getElementById('agendaList').innerHTML = Object.entries(groups).map(([fecha, citas])=>{
+    const [y,m,d] = fecha.split('-');
+    const fechaFmt = d+'/'+m+'/'+y;
+    return `<div class="agenda-group" id="agdate-${fecha}">
       <div class="agenda-group-header">
-        <span class="agenda-group-date">${date}</span>
-        <span class="agenda-group-count">${leads.length} vencimiento${leads.length!==1?'s':''}</span>
+        <span class="agenda-group-date">${fechaFmt}</span>
+        <span class="agenda-group-count">${citas.length} cita${citas.length!==1?'s':''}</span>
       </div>
-      ${leads.map(l=>{
-        const badge=vigenciaBadge(l.estadoVigencia);
-        return`<div class="agenda-item" onclick="goToLead(${l.fila})">
-          <div class="agenda-avatar" style="background:${avatarColor(l.nombre)}">${(l.nombre||'?').charAt(0).toUpperCase()}</div>
-          <div style="flex:1;min-width:0">
-            <div class="agenda-name">${esc(l.nombre||'Sin nombre')}</div>
-            <div class="agenda-mem">${esc(l.membresia||'')}${l.abeja?' · '+esc(l.abeja):''}</div>
+      ${citas.map(c=>`
+        <div class="agenda-item">
+          <div class="agenda-avatar" style="background:${c.tipo==='llamada'?'var(--accent)':'var(--go)'}">
+            ${c.tipo==='llamada'?'📞':'💬'}
           </div>
-          <span class="${badge.cls}">${badge.txt}</span>
-        </div>`;
-      }).join('')}
-    </div>`).join('');
+          <div style="flex:1;min-width:0">
+            <div class="agenda-name">${esc(c.leadNombre||'Sin nombre')}</div>
+            <div class="agenda-meta">${c.hora||''} ${c.leadCorreo?'· '+esc(c.leadCorreo):''} ${c.notas?'· '+esc(c.notas.slice(0,40)):''}</div>
+          </div>
+          <div class="agenda-item-actions">
+            <span class="agenda-tipo-badge ${c.tipo}">${c.tipo==='llamada'?'Llamada':'Mensaje'}</span>
+            <button class="agenda-del-btn" onclick="deleteCita('${c.id}')" title="Eliminar">✕</button>
+          </div>
+        </div>`).join('')}
+    </div>`;
+  }).join('');
 }
 
 function agendaScrollToDate(key){
-  const parts=key.split('-');
-  const formated=parts[2]+'/'+parts[1]+'/'+parts[0];
-  const el=document.getElementById('agdate-'+key.replace(/\//g,'-').replace(/-/g,'-'));
+  const el = document.getElementById('agdate-'+key);
   if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// ── Modal cita ──
+function openCitaModal(fechaKey){
+  CITA_FECHA_SEL = fechaKey;
+  CITA_LEAD_SEL  = null;
+  const [y,m,d]  = fechaKey.split('-');
+  document.getElementById('citaModalTitle').textContent = `Nueva cita — ${d}/${m}/${y}`;
+  document.getElementById('citaLeadSearch').value   = '';
+  document.getElementById('citaLeadResults').style.display = 'none';
+  document.getElementById('citaLeadSelected').style.display = 'none';
+  document.getElementById('citaHora').value  = '';
+  document.getElementById('citaNotas').value = '';
+  setCitaTipo('llamada');
+  document.getElementById('citaModalOverlay').style.display = 'flex';
+  setTimeout(()=>document.getElementById('citaLeadSearch').focus(),100);
+}
+
+function closeCitaModal(){
+  document.getElementById('citaModalOverlay').style.display = 'none';
+}
+
+function setCitaTipo(tipo){
+  CITA_TIPO_SEL = tipo;
+  document.getElementById('tipoBtnLlamada').className = 'cita-tipo-btn'+(tipo==='llamada'?' active-llamada':'');
+  document.getElementById('tipoBtnMensaje').className  = 'cita-tipo-btn'+(tipo==='mensaje'?' active-mensaje':'');
+}
+
+function searchLeadForCita(){
+  const q = document.getElementById('citaLeadSearch').value.trim().toLowerCase();
+  const res = document.getElementById('citaLeadResults');
+  if(q.length < 2){ res.style.display='none'; return; }
+  const matches = ALL_LEADS.filter(l=>
+    (l.nombre||'').toLowerCase().includes(q)||
+    (l.correo||'').toLowerCase().includes(q)||
+    (l.telefono||'').replace(/\D/g,'').includes(q.replace(/\D/g,''))
+  ).slice(0,8);
+  if(!matches.length){ res.style.display='none'; return; }
+  res.innerHTML = matches.map(l=>`
+    <div class="lead-search-result" onclick="selectLeadForCita(${l.fila})">
+      <div class="lead-search-result-name">${esc(l.nombre||'Sin nombre')}</div>
+      <div class="lead-search-result-sub">${esc(l.correo||'')} ${l.telefono?'· '+esc(l.telefono):''}</div>
+    </div>`).join('');
+  res.style.display = 'block';
+}
+
+function selectLeadForCita(fila){
+  const l = ALL_LEADS.find(x=>x.fila===fila);
+  if(!l) return;
+  CITA_LEAD_SEL = { fila:l.fila, nombre:l.nombre, correo:l.correo, telefono:l.telefono };
+  document.getElementById('citaLeadSearch').value = l.nombre||'';
+  document.getElementById('citaLeadResults').style.display = 'none';
+  const sel = document.getElementById('citaLeadSelected');
+  sel.textContent = '✓ '+esc(l.nombre)+(l.correo?' — '+l.correo:'');
+  sel.style.display = 'block';
+}
+
+async function saveCita(){
+  if(!CITA_LEAD_SEL){ showToast('Selecciona un lead',true); return; }
+  const hora  = document.getElementById('citaHora').value;
+  const notas = document.getElementById('citaNotas').value.trim();
+  if(!hora){ showToast('Indica la hora',true); return; }
+
+  const btn = document.querySelector('.cita-modal-footer .btn-save');
+  btn.disabled=true; btn.textContent='Guardando…';
+
+  try {
+    await _fbDB.collection('rb_agenda').add({
+      fecha:      CITA_FECHA_SEL,
+      hora:       hora,
+      tipo:       CITA_TIPO_SEL,
+      leadFila:   CITA_LEAD_SEL.fila,
+      leadNombre: CITA_LEAD_SEL.nombre||'',
+      leadCorreo: CITA_LEAD_SEL.correo||'',
+      leadTel:    CITA_LEAD_SEL.telefono||'',
+      notas:      notas,
+      usuario:    SESSION.usuario||'',
+      creadoEn:   new Date().toISOString()
+    });
+    closeCitaModal();
+    showToast('Cita guardada');
+    renderAgenda();
+  } catch(e){
+    showToast('Error al guardar',true);
+  } finally {
+    btn.disabled=false; btn.textContent='Guardar cita';
+  }
+}
+
+async function deleteCita(id){
+  if(!confirm('¿Eliminar esta cita?')) return;
+  try {
+    await _fbDB.collection('rb_agenda').doc(id).delete();
+    showToast('Cita eliminada');
+    renderAgenda();
+  } catch(e){ showToast('Error al eliminar',true); }
 }
 
 function goToLead(fila){
