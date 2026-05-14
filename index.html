@@ -60,9 +60,9 @@
   --surface2:   #111827;
   --border:     rgba(30,111,255,0.1);
   --border2:    rgba(30,111,255,0.18);
-  --text:       #e8edf5;
-  --text2:      #6b7a99;
-  --text3:      #344060;
+  --text:       #f0f4ff;
+  --text2:      #8fa3cc;
+  --text3:      #4d6490;
   --accent:     #1e6fff;
   --accent-lo:  rgba(30,111,255,0.1);
   --accent-mid: rgba(30,111,255,0.22);
@@ -4715,12 +4715,12 @@ async function saveTarifasPanel() {
     var dark = document.documentElement.getAttribute('data-theme')==='dark';
     return dark
       ? { node:'rgba(30,111,255,0.5)',  line:'rgba(30,111,255,' }
-      : { node:'rgba(30,64,175,0.18)',  line:'rgba(30,64,175,' };
+      : { node:'rgba(30,64,175,0.35)',  line:'rgba(30,64,175,' };
   }
 
   function getOpacity(){
     var dark = document.documentElement.getAttribute('data-theme')==='dark';
-    return dark ? '0.35' : '0.18';
+    return dark ? '0.35' : '0.45';
   }
 
   function draw(){
