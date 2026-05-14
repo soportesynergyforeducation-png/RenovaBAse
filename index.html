@@ -1220,7 +1220,7 @@ async function initFirebaseRT(){
 <div id="loginScreen">
   <!-- Panel izquierdo -->
   <div class="login-left">
-    <div class="ll-orb3"></div>
+    <canvas id="loginNet" style="position:absolute;inset:0;width:100%;height:100%;z-index:0;opacity:.55"></canvas>
     <div class="ll-top">
       <img src="renovabase-logo.png" alt="RenovaBase" class="ll-logo">
     </div>
@@ -1256,6 +1256,92 @@ async function initFirebaseRT(){
     </div>
   </div>
 </div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('loginNet');
+  if(!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var nodes = [], W, H;
+  var NODE_COUNT = 70, MAX_DIST = 140;
+
+  function resize(){
+    var rect = canvas.parentElement.getBoundingClientRect();
+    W = canvas.width  = rect.width  * devicePixelRatio;
+    H = canvas.height = rect.height * devicePixelRatio;
+    canvas.style.width  = rect.width  + 'px';
+    canvas.style.height = rect.height + 'px';
+  }
+
+  function mkNode(){
+    return {
+      x: Math.random()*W, y: Math.random()*H,
+      vx:(Math.random()-.5)*0.5, vy:(Math.random()-.5)*0.5,
+      r: Math.random()*2+1.5
+    };
+  }
+
+  function init(){
+    resize();
+    nodes = [];
+    for(var i=0;i<NODE_COUNT;i++) nodes.push(mkNode());
+  }
+
+  function getColors(){
+    var dark = document.documentElement.getAttribute('data-theme')==='dark';
+    return {
+      node: dark ? 'rgba(96,165,250,0.8)'  : 'rgba(255,255,255,0.8)',
+      line: dark ? 'rgba(30,111,255,'       : 'rgba(255,255,255,'
+    };
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    var c = getColors();
+    var scale = devicePixelRatio;
+    var maxD = MAX_DIST * scale;
+
+    // líneas
+    for(var i=0;i<nodes.length;i++){
+      for(var j=i+1;j<nodes.length;j++){
+        var dx=nodes[i].x-nodes[j].x, dy=nodes[i].y-nodes[j].y;
+        var d=Math.sqrt(dx*dx+dy*dy);
+        if(d<maxD){
+          var alpha=(1-d/maxD)*0.5;
+          ctx.beginPath();
+          ctx.strokeStyle=c.line+alpha+')';
+          ctx.lineWidth=0.8*scale;
+          ctx.moveTo(nodes[i].x,nodes[i].y);
+          ctx.lineTo(nodes[j].x,nodes[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+    // nodos
+    for(var i=0;i<nodes.length;i++){
+      ctx.beginPath();
+      ctx.arc(nodes[i].x,nodes[i].y,nodes[i].r*scale,0,Math.PI*2);
+      ctx.fillStyle=c.node;
+      ctx.fill();
+    }
+  }
+
+  function update(){
+    for(var i=0;i<nodes.length;i++){
+      var n=nodes[i];
+      n.x+=n.vx; n.y+=n.vy;
+      if(n.x<0||n.x>W) n.vx*=-1;
+      if(n.y<0||n.y>H) n.vy*=-1;
+    }
+  }
+
+  function loop(){ update(); draw(); requestAnimationFrame(loop); }
+
+  window.addEventListener('resize', init);
+  init();
+  loop();
+})();
+</script>
 
 <!-- ══ APP ══ -->
 <div id="appShell">
