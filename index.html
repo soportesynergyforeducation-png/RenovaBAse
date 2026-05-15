@@ -4259,7 +4259,7 @@ async function loadLeadsSilent() {
   if (window._suppressSilentLoad && Date.now() < window._suppressSilentLoad) return;
   _loadLeadsSilentRunning = true;
   try {
-    const PAGE_SIZE_API = 1000;
+    const PAGE_SIZE_API = 2000;
     const first = await apiGet({action:'getLeads', rol:SESSION.rol, usuario:SESSION.usuario, page:0, pageSize:PAGE_SIZE_API});
     if (!first.ok) { console.warn('loadLeadsSilent: first page failed', first.error); return; }
     const selectedFila = SELECTED_ROW;
@@ -4267,8 +4267,6 @@ async function loadLeadsSilent() {
     ALL_LEADS = first.leads;
     const totalRows = first.totalRows || first.leads.length;
     const totalPages = Math.ceil(totalRows / PAGE_SIZE_API);
-    console.log('loadLeadsSilent: totalRows=' + totalRows + ', totalPages=' + totalPages);
-    // Cargar páginas restantes SECUENCIALMENTE para no saturar GAS
     for (let p = 1; p < totalPages; p++) {
       try {
         const res = await apiGet({action:'getLeads', rol:SESSION.rol, usuario:SESSION.usuario, page:p, pageSize:PAGE_SIZE_API});
@@ -4276,6 +4274,7 @@ async function loadLeadsSilent() {
         else console.warn('loadLeadsSilent page', p, 'failed:', res.error);
       } catch(e) { console.warn('loadLeadsSilent page', p, 'error:', e); }
     }
+    _leadsGuardarCache(ALL_LEADS);
     populateFilters();
     applyFilters(false);
     loadStats();
@@ -4344,38 +4343,84 @@ function startLoadingPhrases() {
   return () => clearInterval(timer);
 }
 
+const LEADS_CACHE_KEY = 'rb_leads_cache';
+const LEADS_CACHE_TTL = 4 * 60 * 1000; // 4 minutos
+
+function _leadsGuardarCache(leads) {
+  try { localStorage.setItem(LEADS_CACHE_KEY, JSON.stringify({ ts: Date.now(), rol: SESSION.rol, usuario: SESSION.usuario, data: leads })); } catch(e) {}
+}
+
+function _leadsLeerCache() {
+  try {
+    const raw = localStorage.getItem(LEADS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed.rol !== SESSION.rol || parsed.usuario !== SESSION.usuario) return null;
+    if (Date.now() - parsed.ts > LEADS_CACHE_TTL) return null;
+    return parsed.data;
+  } catch(e) { return null; }
+}
+
 async function loadLeads() {
   const list = document.getElementById('leadsList');
+  closeDetailPanel();
+
+  // ── Mostrar caché al instante si está fresco ──
+  const cached = _leadsLeerCache();
+  if (cached && cached.length > 0) {
+    ALL_LEADS = cached;
+    await loadAllTerminoTipos();
+    populateFilters();
+    applyFilters(false);
+    loadStats();
+    renderTerminosDash();
+    renderComisionesDash();
+    if (!USUARIOS_CACHE.length && SESSION.rol === 'admin') {
+      try { const du = await apiGet({action:'getUsuarios'}); if(du.ok) USUARIOS_CACHE = du.usuarios; } catch(e) {}
+    }
+    // Refrescar desde GAS en background sin bloquear la UI
+    _loadLeadsFromGAS(false);
+    return;
+  }
+
+  // ── Sin caché: carga completa con pantalla de loading ──
   list.innerHTML = loadingHTML('Cargando leads…');
   document.getElementById('statsGrid').innerHTML = loadingHTML('Cargando leads…');
   const stopPhrases = startLoadingPhrases();
-  closeDetailPanel();
+  await _loadLeadsFromGAS(true);
+  stopPhrases();
+  if (!window._autoRefreshTimer) {
+    window._autoRefreshTimer = setInterval(function(){
+      if(ALL_LEADS.length > 0) loadLeadsSilent();
+    }, 180000);
+  }
+}
+
+async function _loadLeadsFromGAS(showLoading) {
+  const list = document.getElementById('leadsList');
   try {
-    const PAGE_SIZE_API = 1000;
+    const PAGE_SIZE_API = 2000;
     const first = await apiGet({action:'getLeads', rol:SESSION.rol, usuario:SESSION.usuario, page:0, pageSize:PAGE_SIZE_API});
     if (!first.ok) {
-      list.innerHTML=`<div class="empty-state"><div class="empty-title">Error</div><div class="empty-sub">${first.error}</div></div>`;
+      if (showLoading) list.innerHTML=`<div class="empty-state"><div class="empty-title">Error</div><div class="empty-sub">${first.error}</div></div>`;
       return;
     }
     ALL_LEADS = first.leads;
     const totalRows = first.totalRows || first.leads.length;
     const totalPages = Math.ceil(totalRows / PAGE_SIZE_API);
-    // Cargar páginas restantes ANTES de aplicar scores para que todos los leads reciban sus datos
     for (let p = 1; p < totalPages; p++) {
-      list.innerHTML = loadingHTML(`Cargando leads… ${ALL_LEADS.length} de ${totalRows}`);
+      if (showLoading) list.innerHTML = loadingHTML(`Cargando leads… ${ALL_LEADS.length} de ${totalRows}`);
       try {
         const res = await apiGet({action:'getLeads', rol:SESSION.rol, usuario:SESSION.usuario, page:p, pageSize:PAGE_SIZE_API});
         if (res.ok && res.leads.length) ALL_LEADS = ALL_LEADS.concat(res.leads);
       } catch(e) { console.warn('loadLeads page', p, 'error:', e); }
     }
-    // Con ALL_LEADS completo, aplicar scores a TODOS los leads
-    list.innerHTML = loadingHTML('Preparando scores…');
+    _leadsGuardarCache(ALL_LEADS);
+    if (showLoading) list.innerHTML = loadingHTML('Preparando scores…');
     if (!USUARIOS_CACHE.length && SESSION.rol === 'admin') {
       try { const du = await apiGet({action:'getUsuarios'}); if(du.ok) USUARIOS_CACHE = du.usuarios; } catch(e) {}
     }
     await loadAllTerminoTipos();
-    // Render único con todo listo
-    stopPhrases();
     populateFilters();
     applyFilters(false);
     loadStats();
@@ -4389,8 +4434,7 @@ async function loadLeads() {
       }, 180000);
     }
   } catch(e){
-    stopPhrases();
-    document.getElementById('leadsList').innerHTML='<div class="empty-state"><div class="empty-title">Sin conexión</div><div class="empty-sub">Verifica tu internet</div></div>';
+    if (showLoading) list.innerHTML='<div class="empty-state"><div class="empty-title">Sin conexión</div><div class="empty-sub">Verifica tu internet</div></div>';
   }
 }
 
