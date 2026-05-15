@@ -1165,14 +1165,18 @@ async function initFirebaseRT(){
         }
       });
       if(changed && !_loadLeadsSilentRunning){
-        renderTerminosDash();
-        renderComisionesDash();
-        applyFilters(false);
-        var tv = document.getElementById('view-terminos');
-        if(tv && tv.classList.contains('active')) renderTerminosView();
-        // Si fue acción local (quick action), no re-renderizar panel — ya lo actualizó doScoreAction
-        if(window._localScoreWrite){ window._localScoreWrite = false; }
-        else { refreshOpenPanel(); }
+        var localWrite = window._localScoreWrite;
+        if(localWrite) window._localScoreWrite = false;
+        clearTimeout(window._scoresRenderDebounce);
+        window._scoresRenderDebounce = setTimeout(function(){
+          if(_loadLeadsSilentRunning) return;
+          renderTerminosDash();
+          renderComisionesDash();
+          applyFilters(false);
+          var tv = document.getElementById('view-terminos');
+          if(tv && tv.classList.contains('active')) renderTerminosView();
+          if(!localWrite) refreshOpenPanel();
+        }, 300);
       }
     }, function(err){ console.warn('rb_scores RT error:', err); });
 
@@ -2420,16 +2424,17 @@ function applyFilters(resetPage=true){
 }
 
 // ══ BÚSQUEDA GLOBAL ══
+var _searchDebounce = null;
 function handleGlobalSearch(){
   const val=document.getElementById('globalSearch').value;
   const clearBtn=document.getElementById('clearSearchBtn');
   if(clearBtn) clearBtn.style.display = val ? 'flex' : 'none';
-  // Si está en otra vista, ir automáticamente a Miembros
   const leadsView=document.getElementById('view-leads');
   if(val && !leadsView.classList.contains('active')){
     showView('leads');
   }
-  applyFilters();
+  clearTimeout(_searchDebounce);
+  _searchDebounce = setTimeout(applyFilters, 250);
 }
 
 function clearGlobalSearch(){
