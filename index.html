@@ -2729,34 +2729,28 @@ async function verificarPago(fila) {
     if (pendEntry.comprobante && !ALL_LEADS[idx].comprobante) ALL_LEADS[idx].comprobante = pendEntry.comprobante;
   }
 
-  // 2. Si el panel de detalle está abierto para este lead, guardar todos los campos editables primero
+  // 2. Si el panel de detalle está abierto para este lead, guardar campos en memoria y Sheets en background
   const panelOpen = document.getElementById('dp_termino') !== null && SELECTED_ROW === fila;
   if (panelOpen) {
-    const params = {
-      action:           'updateLead',
-      correo:           ALL_LEADS[idx].correo   || '',
-      telefonoBusqueda: ALL_LEADS[idx].telefono || '',
-      evento:           document.getElementById('dp_evento')?.value     || '',
-      membresia:        document.getElementById('dp_membresia')?.value  || '',
-      vencimiento:      document.getElementById('dp_vencimiento')?.value || '',
-      abeja:            document.getElementById('dp_abeja')?.value      || '',
-      com1:             document.getElementById('dp_com1')?.value       || '',
-      com2:             document.getElementById('dp_com2')?.value       || '',
-      com3:             document.getElementById('dp_com3')?.value       || '',
-      com4:             document.getElementById('dp_com4')?.value       || '',
-      estado:           document.getElementById('dp_estado')?.value     || '',
-      termino:          document.getElementById('dp_termino')?.value    || '',
-      terminoTipo:      document.getElementById('dp_termino_tipo')?.value || '',
-      notas:            document.getElementById('dp_notas')?.value      || '',
+    const campos = {
+      evento:      document.getElementById('dp_evento')?.value      || '',
+      membresia:   document.getElementById('dp_membresia')?.value   || '',
+      vencimiento: document.getElementById('dp_vencimiento')?.value || '',
+      abeja:       document.getElementById('dp_abeja')?.value       || '',
+      com1:        document.getElementById('dp_com1')?.value        || '',
+      com2:        document.getElementById('dp_com2')?.value        || '',
+      com3:        document.getElementById('dp_com3')?.value        || '',
+      com4:        document.getElementById('dp_com4')?.value        || '',
+      estado:      document.getElementById('dp_estado')?.value      || '',
+      termino:     document.getElementById('dp_termino')?.value     || '',
+      terminoTipo: document.getElementById('dp_termino_tipo')?.value || '',
+      notas:       document.getElementById('dp_notas')?.value       || '',
     };
-    try {
-      const { action, correo, telefonoBusqueda, ...campos } = params;
-      pingUpdate(ALL_LEADS[idx].fila, campos);
-      const res = await apiGet(params);
-      if (res.ok) {
-        Object.assign(ALL_LEADS[idx], campos);
-      }
-    } catch(e) { console.warn('verificarPago: save profile error', e); }
+    Object.assign(ALL_LEADS[idx], campos);
+    pingUpdate(ALL_LEADS[idx].fila, campos);
+    // GAS en background — no bloquea la verificación
+    apiGet({ action:'updateLead', correo: ALL_LEADS[idx].correo||'', telefonoBusqueda: ALL_LEADS[idx].telefono||'', ...campos })
+      .catch(e => console.warn('verificarPago: save profile error', e));
   }
 
   // 3. Verificar el pago
@@ -2806,12 +2800,12 @@ async function verificarPago(fila) {
     .catch(()=>{});
 
   showToast('Pago verificado ✓');
-  if (panelOpen) openDetailPanel(ALL_LEADS[idx]);
+  _invalidateRefreshPanelSnapshot();
   renderTerminosDash();
   renderComisionesDash();
-  applyFilters(false);
   const tv = document.getElementById('view-terminos');
   if (tv && tv.classList.contains('active')) renderTerminosView();
+  if (panelOpen) refreshOpenPanel();
 }
 
 // ══ HISTORIAL LOCAL (en memoria) ══
