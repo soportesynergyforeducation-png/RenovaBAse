@@ -2600,20 +2600,7 @@ async function submitComprobante(fila) {
     if (terminoSel)     ALL_LEADS[idx].termino     = terminoSel;
     if (terminoTipoSel) ALL_LEADS[idx].terminoTipo = terminoTipoSel;
 
-    // Si hay término positivo, actualizar fechaTermino y aplicar score
-    if (terminoSel && TERMINOS_POSITIVOS.includes(terminoSel.toUpperCase())) {
-      const ahora = new Date();
-      const dd = String(ahora.getDate()).padStart(2,'0');
-      const mm = String(ahora.getMonth()+1).padStart(2,'0');
-      const yyyy = ahora.getFullYear();
-      const hh = String(ahora.getHours()).padStart(2,'0');
-      const mi = String(ahora.getMinutes()).padStart(2,'0');
-      ALL_LEADS[idx].fechaTermino    = ahora.toISOString();
-      ALL_LEADS[idx].fechaTerminoFmt = `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
-      await applyTerminoScore(ALL_LEADS[idx], terminoSel, terminoTipoSel || '');
-    }
-
-    // Guardar pagoEstado en Firebase
+    // Preparar score completo ANTES de escribir a Firebase (un solo write)
     const key = scoreKey(lead.correo);
     const st = getScore(ALL_LEADS[idx]);
     st.pagoEstado  = 'pendiente';
@@ -2627,6 +2614,29 @@ async function submitComprobante(fila) {
     if (_fc('dp_com2'))  st.com2 = _fc('dp_com2');
     if (_fc('dp_com3'))  st.com3 = _fc('dp_com3');
     if (_fc('dp_com4'))  st.com4 = _fc('dp_com4');
+
+    // Si hay término positivo, aplicar score en memoria y hacer UN SOLO write
+    if (terminoSel && TERMINOS_POSITIVOS.includes(terminoSel.toUpperCase())) {
+      const ahora = new Date();
+      const dd = String(ahora.getDate()).padStart(2,'0');
+      const mm = String(ahora.getMonth()+1).padStart(2,'0');
+      const yyyy = ahora.getFullYear();
+      const hh = String(ahora.getHours()).padStart(2,'0');
+      const mi = String(ahora.getMinutes()).padStart(2,'0');
+      ALL_LEADS[idx].fechaTermino    = ahora.toISOString();
+      ALL_LEADS[idx].fechaTerminoFmt = `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+      // Aplicar cambios de score en memoria sin escribir a Firebase aún
+      st.score   = 100;
+      st.termino = terminoSel;
+      if (terminoTipoSel) st.terminoTipo = terminoTipoSel;
+      const dot = 'g';
+      const txt = '✅ ' + (terminoTipoSel || terminoSel);
+      const now = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+      st.hist = st.hist || [];
+      st.hist.unshift({ dot, text: txt, time: now, ts: Date.now() });
+      if (st.hist.length > 20) st.hist.pop();
+      ALL_LEADS[idx].terminoTipo = terminoTipoSel || ALL_LEADS[idx].terminoTipo;
+    }
     SCORES[key] = st;
     await saveScoreToFirebase(key, st);
     ALL_LEADS[idx].pagoEstado = 'pendiente';
@@ -2725,14 +2735,19 @@ async function verificarPago(fila) {
   if (lead.com2)        st.com2        = lead.com2;
   if (lead.com3)        st.com3        = lead.com3;
   if (lead.com4)        st.com4        = lead.com4;
-  SCORES[key] = st;
-  await saveScoreToFirebase(key, st);
-  ALL_LEADS[idx].pagoEstado    = 'verificado';
-  ALL_LEADS[idx].pagoFechaVerif = st.pagoFechaVerif;
-
-  // Aplicar score de término si no se ha aplicado aún
+  // Aplicar score de término en memoria si no se ha aplicado aún (sin write extra)
   if (lead.termino && TERMINOS_POSITIVOS.includes(lead.termino.toUpperCase())) {
-    await applyTerminoScore(ALL_LEADS[idx], lead.termino, lead.terminoTipo || '');
+    st.score   = 100;
+    st.termino = lead.termino;
+    if (lead.terminoTipo) st.terminoTipo = lead.terminoTipo;
+    const dot = 'g';
+    const txt = '✅ ' + (lead.terminoTipo || lead.termino);
+    const now = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+    st.hist = st.hist || [];
+    if (!st.hist.some(h => h.text === txt)) {
+      st.hist.unshift({ dot, text: txt, time: now, ts: Date.now() });
+      if (st.hist.length > 20) st.hist.pop();
+    }
     if (!ALL_LEADS[idx].fechaTerminoFmt) {
       const ahora = new Date();
       const dd = String(ahora.getDate()).padStart(2,'0');
@@ -2743,6 +2758,10 @@ async function verificarPago(fila) {
       ALL_LEADS[idx].fechaTerminoFmt = `${dd}/${mm}/${ahora.getFullYear()} ${hh}:${mi}`;
     }
   }
+  SCORES[key] = st;
+  await saveScoreToFirebase(key, st);
+  ALL_LEADS[idx].pagoEstado    = 'verificado';
+  ALL_LEADS[idx].pagoFechaVerif = st.pagoFechaVerif;
 
   // 4. Marcar verificado en rb_pendientes/estado → onSnapshot retira de PENDIENTES_MAP en todos los clientes
   if (_fbDB) _fbDB.collection('rb_pendientes').doc('estado')
@@ -4171,7 +4190,10 @@ document.addEventListener('keydown',e=>{
   }
 });
 
+let _loadLeadsSilentRunning = false;
 async function loadLeadsSilent() {
+  if (_loadLeadsSilentRunning) return;
+  _loadLeadsSilentRunning = true;
   try {
     const PAGE_SIZE_API = 1000;
     const first = await apiGet({action:'getLeads', rol:SESSION.rol, usuario:SESSION.usuario, page:0, pageSize:PAGE_SIZE_API});
@@ -4217,6 +4239,7 @@ async function loadLeadsSilent() {
       refreshOpenPanel();
     });
   } catch(e) { console.warn('loadLeadsSilent error:', e); }
+  finally { _loadLeadsSilentRunning = false; }
 }
 
 function loadingHTML(txt) {
