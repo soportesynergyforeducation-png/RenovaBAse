@@ -1896,7 +1896,7 @@ async function loadScoresFromFirebase(leads) {
 }
 
 const SCORES_CACHE_KEY = 'rb_scores_cache';
-const SCORES_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+const SCORES_CACHE_TTL = 45 * 60 * 1000; // 45 min — onSnapshot mantiene datos frescos en tiempo real
 
 function _scoresGuardarCache(map) {
   try {
