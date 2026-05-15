@@ -2583,20 +2583,7 @@ async function submitComprobante(fila) {
     if (terminoTipoSel)                        params.terminoTipo = terminoTipoSel;
     if (ESTADOS_SHEET.includes(estadoSel))    params.estado      = estadoSel;
 
-    // Escribir a Firebase ANTES del Sheets para que los demás clientes reciban los datos al instante
-    pingUpdate(fila, {
-      evento: params.evento, membresia: params.membresia, vencimiento: params.vencimiento,
-      notas: params.notas, comprobante: url,
-      ...(params.termino     ? {termino:     params.termino}     : {}),
-      ...(params.terminoTipo ? {terminoTipo: params.terminoTipo} : {}),
-      ...(params.estado      ? {estado:      params.estado}      : {})
-    });
-
-    const res = await apiGet(params);
-    if (!res.ok) { showToast('Error al guardar: ' + res.error, true); if (btn) { btn.disabled = false; btn.textContent = 'Enviar comprobante'; } return; }
-
-    // Actualizar ALL_LEADS con TODOS los valores del formulario (incluyendo termino)
-    // para que openDetailPanel re-renderice sin perder ningún cambio
+    // Actualizar ALL_LEADS en memoria con todos los campos del formulario
     ALL_LEADS[idx].evento      = params.evento;
     ALL_LEADS[idx].membresia   = params.membresia;
     ALL_LEADS[idx].vencimiento = params.vencimiento;
@@ -2605,7 +2592,7 @@ async function submitComprobante(fila) {
     if (terminoSel)     ALL_LEADS[idx].termino     = terminoSel;
     if (terminoTipoSel) ALL_LEADS[idx].terminoTipo = terminoTipoSel;
 
-    // Preparar score completo ANTES de escribir a Firebase (un solo write)
+    // Preparar score completo
     const key = scoreKey(lead.correo);
     const st = getScore(ALL_LEADS[idx]);
     st.pagoEstado  = 'pendiente';
@@ -2620,7 +2607,6 @@ async function submitComprobante(fila) {
     if (_fc('dp_com3'))  st.com3 = _fc('dp_com3');
     if (_fc('dp_com4'))  st.com4 = _fc('dp_com4');
 
-    // Si hay término positivo, aplicar score en memoria y hacer UN SOLO write
     if (terminoSel && TERMINOS_POSITIVOS.includes(terminoSel.toUpperCase())) {
       const ahora = new Date();
       const dd = String(ahora.getDate()).padStart(2,'0');
@@ -2630,7 +2616,6 @@ async function submitComprobante(fila) {
       const mi = String(ahora.getMinutes()).padStart(2,'0');
       ALL_LEADS[idx].fechaTermino    = ahora.toISOString();
       ALL_LEADS[idx].fechaTerminoFmt = `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
-      // Aplicar cambios de score en memoria sin escribir a Firebase aún
       st.score   = 100;
       st.termino = terminoSel;
       if (terminoTipoSel) st.terminoTipo = terminoTipoSel;
@@ -2643,10 +2628,10 @@ async function submitComprobante(fila) {
       ALL_LEADS[idx].terminoTipo = terminoTipoSel || ALL_LEADS[idx].terminoTipo;
     }
     SCORES[key] = st;
-    await saveScoreToFirebase(key, st);
     ALL_LEADS[idx].pagoEstado = 'pendiente';
 
-    // Escribir en rb_pendientes/estado
+    // ── Escribir a Firebase ANTES del Sheets (admin ve el pendiente al instante, sin esperar GAS) ──
+    await saveScoreToFirebase(key, st);
     if (_fbDB) {
       const pendEntry = {
         fila:          fila,
@@ -2659,20 +2644,27 @@ async function submitComprobante(fila) {
         estado:        'pendiente',
         estadoGestion: estadoSel               || '',
         notas:         params.notas            || '',
-        com1:          fv('dp_com1')           || '',
-        com2:          fv('dp_com2')           || '',
-        com3:          fv('dp_com3')           || '',
-        com4:          fv('dp_com4')           || '',
+        com1:          _fc('dp_com1')          || '',
+        com2:          _fc('dp_com2')          || '',
+        com3:          _fc('dp_com3')          || '',
+        com4:          _fc('dp_com4')          || '',
         ts:            new Date().toISOString()
       };
-      _fbDB.collection('rb_pendientes').doc('estado')
+      await _fbDB.collection('rb_pendientes').doc('estado')
         .set({ [fila]: pendEntry }, { merge: true })
-        .then(() => console.log('rb_pendientes write OK, fila:', fila))
-        .catch(e => {
-          console.error('rb_pendientes write FAILED:', e);
-          showToast('Error Firebase: ' + (e.code || e.message), true);
-        });
+        .catch(e => { console.error('rb_pendientes write FAILED:', e); showToast('Error Firebase: ' + (e.code || e.message), true); });
     }
+    pingUpdate(fila, {
+      evento: params.evento, membresia: params.membresia, vencimiento: params.vencimiento,
+      notas: params.notas, comprobante: url,
+      ...(params.termino     ? {termino:     params.termino}     : {}),
+      ...(params.terminoTipo ? {terminoTipo: params.terminoTipo} : {}),
+      ...(params.estado      ? {estado:      params.estado}      : {})
+    });
+
+    // GAS/Sheets en segundo plano — no bloquea el flujo de Firebase
+    const res = await apiGet(params);
+    if (!res.ok) console.warn('submitComprobante: Sheets write failed:', res.error);
 
     renderTerminosDash();
     applyFilters(false);
@@ -4235,14 +4227,13 @@ async function loadLeadsSilent() {
       }
     }
     document.getElementById('leadsList').scrollTop = scrollTop;
-    loadAllTerminoTipos().then(() => {
-      applyFilters(false);
-      renderTerminosDash();
-      renderComisionesDash();
-      const tv = document.getElementById('view-terminos');
-      if (tv && tv.classList.contains('active')) renderTerminosView();
-      refreshOpenPanel();
-    });
+    await loadAllTerminoTipos();
+    applyFilters(false);
+    renderTerminosDash();
+    renderComisionesDash();
+    const tv2 = document.getElementById('view-terminos');
+    if (tv2 && tv2.classList.contains('active')) renderTerminosView();
+    refreshOpenPanel();
   } catch(e) { console.warn('loadLeadsSilent error:', e); }
   finally { _loadLeadsSilentRunning = false; }
 }
