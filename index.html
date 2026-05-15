@@ -2268,11 +2268,13 @@ function loadStats() {
       membresias: {}, porAbeja: {}
     };
     leads.forEach(l => {
+      const _sc = SCORES[scoreKey(l.correo)];
+      const resuelta = l.termino || (_sc && (_sc.score === 100 || _sc.score === 0));
       switch(l.estadoVigencia) {
         case 'vigente':    s.vigente++;    break;
         case 'por-vencer': s.porVencer++;  break;
-        case 'urgente':    s.urgente++;    break;
-        case 'vence-hoy':  s.venceHoy++;   break;
+        case 'urgente':    if(!resuelta) s.urgente++;    break;
+        case 'vence-hoy':  if(!resuelta) s.venceHoy++;   break;
         case 'vencido':    s.vencido++;    break;
         default:           s.sinFecha++;
       }
