@@ -1920,8 +1920,13 @@ async function loadAllTerminoTipos() {
   const cached = _scoresLeerCache();
   if (cached) {
     _scoresAplicarMap(cached);
-    // Refrescar en background sin bloquear el render
-    _scoresRefrescarFirestore();
+    // Refrescar en background sin bloquear el render; re-renderizar al terminar
+    _scoresRefrescarFirestore().then(() => {
+      renderTerminosDash();
+      renderComisionesDash();
+      const tv = document.getElementById('view-terminos');
+      if (tv && tv.classList.contains('active')) renderTerminosView();
+    });
     return;
   }
 
@@ -4297,8 +4302,7 @@ async function loadLeads() {
     ALL_LEADS = first.leads;
     const totalRows = first.totalRows || first.leads.length;
     const totalPages = Math.ceil(totalRows / PAGE_SIZE_API);
-    // Cargar scores de Firebase y páginas restantes en paralelo
-    const scoresPromise = loadAllTerminoTipos();
+    // Cargar páginas restantes ANTES de aplicar scores para que todos los leads reciban sus datos
     for (let p = 1; p < totalPages; p++) {
       list.innerHTML = loadingHTML(`Cargando leads… ${ALL_LEADS.length} de ${totalRows}`);
       try {
@@ -4306,12 +4310,12 @@ async function loadLeads() {
         if (res.ok && res.leads.length) ALL_LEADS = ALL_LEADS.concat(res.leads);
       } catch(e) { console.warn('loadLeads page', p, 'error:', e); }
     }
-    // Esperar scores antes de mostrar cualquier lead
+    // Con ALL_LEADS completo, aplicar scores a TODOS los leads
     list.innerHTML = loadingHTML('Preparando scores…');
     if (!USUARIOS_CACHE.length && SESSION.rol === 'admin') {
       try { const du = await apiGet({action:'getUsuarios'}); if(du.ok) USUARIOS_CACHE = du.usuarios; } catch(e) {}
     }
-    await scoresPromise;
+    await loadAllTerminoTipos();
     // Render único con todo listo
     stopPhrases();
     populateFilters();
