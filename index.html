@@ -1115,10 +1115,12 @@ async function initFirebaseRT(){
             if(entry.com4)          lead.com4   = entry.com4;
           }
         });
-        applyFilters(false);
-        var tv = document.getElementById('view-terminos');
-        if(tv && tv.classList.contains('active')) renderTerminosView();
-        refreshOpenPanel();
+        if(!_loadLeadsSilentRunning){
+          applyFilters(false);
+          var tv = document.getElementById('view-terminos');
+          if(tv && tv.classList.contains('active')) renderTerminosView();
+          refreshOpenPanel();
+        }
         // Sheets ya terminó de escribir cuando rb_pendientes llega — recargar silencioso para datos completos
         clearTimeout(window._pendientesRefresh);
         window._pendientesRefresh = setTimeout(function(){
@@ -1162,7 +1164,7 @@ async function initFirebaseRT(){
           changed = true;
         }
       });
-      if(changed){
+      if(changed && !_loadLeadsSilentRunning){
         renderTerminosDash();
         renderComisionesDash();
         applyFilters(false);
@@ -1186,10 +1188,12 @@ async function initFirebaseRT(){
         var lead = ALL_LEADS.find(function(l){ return l.fila === d.fila; });
         if(lead){
           Object.assign(lead, d.campos);
-          applyFilters(false);
-          var tv = document.getElementById('view-terminos');
-          if(tv && tv.classList.contains('active')) renderTerminosView();
-          refreshOpenPanel();
+          if(!_loadLeadsSilentRunning){
+            applyFilters(false);
+            var tv = document.getElementById('view-terminos');
+            if(tv && tv.classList.contains('active')) renderTerminosView();
+            refreshOpenPanel();
+          }
         }
       }
       // Sin campos = bulkAsignar u otro cambio de Sheets → recargar rápido
