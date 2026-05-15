@@ -2803,11 +2803,30 @@ async function verificarPago(fila) {
 
   showToast('Pago verificado ✓');
   _invalidateRefreshPanelSnapshot();
+  // Suprimir loadLeadsSilent por 15s — datos ya correctos en memoria y Firebase
+  window._suppressSilentLoad = Date.now() + 15000;
   renderTerminosDash();
   renderComisionesDash();
   const tv = document.getElementById('view-terminos');
-  if (tv && tv.classList.contains('active')) renderTerminosView();
+  if (tv && tv.classList.contains('active')) _patchTerminoRow(fila);
   if (panelOpen) refreshOpenPanel();
+}
+
+// Actualiza en el DOM solo el badge de estado de un row de términos sin re-renderizar la lista
+function _patchTerminoRow(fila) {
+  const lead = ALL_LEADS.find(l => l.fila === fila);
+  if (!lead) return;
+  const row = document.querySelector(`.termino-row[data-fila="${fila}"]`);
+  if (!row) { renderTerminosView(); return; } // fallback si no existe el row
+  // Quitar badge pendiente y botón verificar si ya está verificado
+  if (lead.pagoEstado === 'verificado') {
+    row.querySelectorAll('.btn-sm.go, [onclick^="verificarPago"]').forEach(el => el.remove());
+    const pendSpan = row.querySelector('span[style*="color:var(--warn)"]');
+    if (pendSpan && pendSpan.textContent.includes('Pendiente')) pendSpan.remove();
+  }
+  // Actualizar también stats y dash
+  renderTerminosDash();
+  renderComisionesDash();
 }
 
 // ══ HISTORIAL LOCAL (en memoria) ══
@@ -3956,7 +3975,7 @@ function renderTerminosView() {
       const comp  = (pendEntry && pendEntry.comprobante) || l.comprobante || '';
       const subTipo = l.terminoTipo || '';
       const pendienteRow = ACTIVE_TERM_CHIP === 'pendiente' && comp;
-      return `<div class="termino-row" onclick="goToLeadDetail(${l.fila})">
+      return `<div class="termino-row" data-fila="${l.fila}" onclick="goToLeadDetail(${l.fila})">
         <div class="lead-avatar" style="background:${color}">${ini}</div>
         <div class="lead-main">
           <div class="lead-name">${esc(l.nombre||'Sin nombre')}</div>
@@ -4232,6 +4251,7 @@ document.addEventListener('keydown',e=>{
 let _loadLeadsSilentRunning = false;
 async function loadLeadsSilent() {
   if (_loadLeadsSilentRunning) return;
+  if (window._suppressSilentLoad && Date.now() < window._suppressSilentLoad) return;
   _loadLeadsSilentRunning = true;
   try {
     const PAGE_SIZE_API = 1000;
