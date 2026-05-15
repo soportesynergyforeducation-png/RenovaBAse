@@ -2699,8 +2699,10 @@ async function submitComprobante(fila) {
 }
 
 async function verificarPago(fila) {
+  // Evitar doble ejecución — deshabilitar todos los botones de este fila al instante
+  document.querySelectorAll(`[onclick="verificarPago(${fila})"]`).forEach(b => { b.disabled = true; b.textContent = 'Verificando…'; });
   const idx = ALL_LEADS.findIndex(l => l.fila === fila);
-  if (idx < 0) return;
+  if (idx < 0) { document.querySelectorAll(`[onclick="verificarPago(${fila})"]`).forEach(b => { b.disabled = false; b.textContent = 'Verificar pago'; }); return; }
 
   // 1. Sincronizar termino/tipo desde PENDIENTES_MAP si el admin no los tiene en ALL_LEADS
   const pendEntry = PENDIENTES_MAP[fila] || PENDIENTES_MAP[String(fila)]
