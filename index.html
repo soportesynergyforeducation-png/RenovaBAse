@@ -2018,33 +2018,49 @@ async function apiPost(params) {
 }
 
 // Refresca el panel de detalle abierto (overlay de términos o panel lateral) con datos frescos
+var _refreshPanelTimer = null;
+var _refreshPanelSnapshot = null; // hash de los campos clave del lead al último render
+
 function refreshOpenPanel(){
   if(!SELECTED_ROW) return;
-  var lead = ALL_LEADS.find(function(l){ return l.fila===SELECTED_ROW; });
-  if(!lead) return;
-  var overlay = document.getElementById('terminoDetailOverlay');
-  var targetPanel = (overlay && overlay.classList.contains('open'))
-    ? overlay
-    : (document.getElementById('detailPanel')?.classList.contains('open') ? document.getElementById('detailPanel') : null);
-  if(!targetPanel) return;
-  // Preservar cambios no guardados del usuario antes de re-renderizar
-  var fv = function(id){ var el=document.getElementById(id); return el?el.value:null; };
-  if(fv('dp_estado')   !== null) lead.estado      = fv('dp_estado');
-  if(fv('dp_notas')    !== null) lead.notas        = fv('dp_notas');
-  if(fv('dp_termino')  !== null) lead.termino      = fv('dp_termino');
-  if(fv('dp_com1')     !== null) lead.com1         = fv('dp_com1');
-  if(fv('dp_com2')     !== null) lead.com2         = fv('dp_com2');
-  if(fv('dp_com3')     !== null) lead.com3         = fv('dp_com3');
-  if(fv('dp_com4')     !== null) lead.com4         = fv('dp_com4');
-  if(fv('dp_membresia')!== null) lead.membresia    = fv('dp_membresia');
-  if(fv('dp_vencimiento')!==null)lead.vencimiento  = fv('dp_vencimiento');
-  if(fv('dp_abeja')    !== null) lead.abeja        = fv('dp_abeja');
-  var scrollEl = targetPanel.querySelector('.rp-scroll');
-  var scrollTop = scrollEl ? scrollEl.scrollTop : 0;
-  openDetailPanel(lead, overlay && overlay.classList.contains('open') ? overlay : undefined);
-  var scrollElAfter = targetPanel.querySelector('.rp-scroll');
-  if(scrollElAfter) scrollElAfter.scrollTop = scrollTop;
+  clearTimeout(_refreshPanelTimer);
+  _refreshPanelTimer = setTimeout(function(){
+    if(!SELECTED_ROW) return;
+    var lead = ALL_LEADS.find(function(l){ return l.fila===SELECTED_ROW; });
+    if(!lead) return;
+    var overlay = document.getElementById('terminoDetailOverlay');
+    var targetPanel = (overlay && overlay.classList.contains('open'))
+      ? overlay
+      : (document.getElementById('detailPanel')?.classList.contains('open') ? document.getElementById('detailPanel') : null);
+    if(!targetPanel) return;
+
+    // Solo re-renderizar si algo relevante del lead cambió
+    var snap = [lead.termino,lead.terminoTipo,lead.pagoEstado,lead.pagoFechaVerif,
+                lead.estado,lead.membresia,lead.vencimiento,lead.abeja,lead.score].join('|');
+    if(snap === _refreshPanelSnapshot) return;
+    _refreshPanelSnapshot = snap;
+
+    // Preservar cambios no guardados del usuario antes de re-renderizar
+    var fv = function(id){ var el=document.getElementById(id); return el?el.value:null; };
+    if(fv('dp_estado')   !== null) lead.estado      = fv('dp_estado');
+    if(fv('dp_notas')    !== null) lead.notas        = fv('dp_notas');
+    if(fv('dp_termino')  !== null) lead.termino      = fv('dp_termino');
+    if(fv('dp_com1')     !== null) lead.com1         = fv('dp_com1');
+    if(fv('dp_com2')     !== null) lead.com2         = fv('dp_com2');
+    if(fv('dp_com3')     !== null) lead.com3         = fv('dp_com3');
+    if(fv('dp_com4')     !== null) lead.com4         = fv('dp_com4');
+    if(fv('dp_membresia')!== null) lead.membresia    = fv('dp_membresia');
+    if(fv('dp_vencimiento')!==null)lead.vencimiento  = fv('dp_vencimiento');
+    if(fv('dp_abeja')    !== null) lead.abeja        = fv('dp_abeja');
+    var scrollEl = targetPanel.querySelector('.rp-scroll');
+    var scrollTop = scrollEl ? scrollEl.scrollTop : 0;
+    openDetailPanel(lead, overlay && overlay.classList.contains('open') ? overlay : undefined);
+    var scrollElAfter = targetPanel.querySelector('.rp-scroll');
+    if(scrollElAfter) scrollElAfter.scrollTop = scrollTop;
+  }, 400);
 }
+
+function _invalidateRefreshPanelSnapshot(){ _refreshPanelSnapshot = null; }
 
 // Notifica a todos los clientes conectados con los campos actualizados para sync inmediato
 function pingUpdate(fila, campos){
@@ -2533,7 +2549,7 @@ function openWA(e,tel){e.stopPropagation();if(!tel)return;const c=tel.replace(/\
 async function selectLead(fila){
   const lead=ALL_LEADS.find(l=>l.fila===fila);
   if(!lead)return;
-  SELECTED_ROW=fila;
+  SELECTED_ROW=fila; _invalidateRefreshPanelSnapshot();
   document.querySelectorAll('.lead-row').forEach(r=>r.classList.remove('selected'));
   const row=document.getElementById('row-'+fila);
   if(row)row.classList.add('selected');
@@ -4168,7 +4184,7 @@ function exportTerminosCSV() {
 async function goToLeadDetail(fila) {
   const lead = ALL_LEADS.find(l => l.fila === fila);
   if (!lead) return;
-  SELECTED_ROW = fila;
+  SELECTED_ROW = fila; _invalidateRefreshPanelSnapshot();
   await loadScoreForLead(lead);
   const key = scoreKey(lead.correo);
   const sc = SCORES[key];
