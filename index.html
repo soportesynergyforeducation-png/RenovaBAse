@@ -1207,7 +1207,25 @@ async function initFirebaseRT(){
       _fbDB.collection('rb_notify').doc(SESSION.usuario).onSnapshot(function(snap){
         if(notifyFirstLoad){ notifyFirstLoad=false; return; }
         if(!snap.exists) return;
-        if(ALL_LEADS.length > 0) loadLeadsSilent();
+        var d = snap.data() || {};
+        if(d.type === 'asignacion' && Array.isArray(d.filas) && d.abeja && ALL_LEADS.length > 0){
+          // Aplicar asignación directamente sin recargar desde Sheets
+          var count = 0;
+          d.filas.forEach(function(fila){
+            var lead = ALL_LEADS.find(function(l){ return l.fila === fila || l.fila === String(fila) || String(l.fila) === String(fila); });
+            if(lead){ lead.abeja = d.abeja; count++; }
+          });
+          if(count > 0){
+            applyFilters(false);
+            renderTerminosDash();
+            showToast('Se te asignaron ' + count + ' lead' + (count !== 1 ? 's' : '') + ' ✓');
+          }
+          // Recargar en background para sincronizar Sheets (sin bloquear la UI)
+          clearTimeout(window._notifyRefresh);
+          window._notifyRefresh = setTimeout(function(){ if(ALL_LEADS.length > 0) loadLeadsSilent(); }, 5000);
+        } else {
+          if(ALL_LEADS.length > 0) loadLeadsSilent();
+        }
       }, function(err){ console.warn('rb_notify RT error:', err); });
     }
 
@@ -3165,11 +3183,17 @@ async function applyBulkAbeja() {
   const telefonos = selLeads.map(l => l.telefono || '').join(',');
 
   try {
+    // Notificar a la abeja ANTES del GAS con los datos de asignación para que actualice al instante
+    const filasAsignadas = [...SELECTED_FILAS];
+    if (_fbDB && abeja) {
+      _fbDB.collection('rb_notify').doc(abeja).set({
+        ts: Date.now(), by: SESSION.usuario||'',
+        type: 'asignacion', filas: filasAsignadas, abeja: abeja
+      });
+    }
     const res = await apiGet({ action:'bulkAsignar', correos, telefonos, abeja });
     if (res.ok) {
       pingUpdate();
-      // Notificar directamente a la abeja asignada
-      if(_fbDB && abeja) _fbDB.collection('rb_notify').doc(abeja).set({ts: Date.now(), by: SESSION.usuario||''});
       SELECTED_FILAS.forEach(fila => {
         const idx = ALL_LEADS.findIndex(l => l.fila === fila);
         if (idx >= 0) ALL_LEADS[idx].abeja = abeja;
