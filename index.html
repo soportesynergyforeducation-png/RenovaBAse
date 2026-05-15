@@ -2177,11 +2177,11 @@ function startApp() {
   const rb = document.getElementById('roleBadge');
   rb.textContent  = SESSION.rol==='admin'?'Admin':'Abeja';
   rb.className    = 'role-badge '+SESSION.rol;
+  document.getElementById('chipPendientes').style.display='';
   if (SESSION.rol==='admin') {
     document.getElementById('filterAbeja').style.display='';
     document.getElementById('filterTermAbeja').style.display='';
     document.getElementById('sepTermAbeja').style.display='';
-    document.getElementById('chipPendientes').style.display='';
     document.getElementById('comisionesBox').style.display='';
     document.getElementById('bulkSep').style.display='';
     document.getElementById('bulkAbeja').style.display='';
