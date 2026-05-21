@@ -4610,6 +4610,7 @@ document.addEventListener('keydown',e=>{
 });
 
 let _loadLeadsSilentRunning = false;
+let _loadLeadsFromGASRunning = false;
 async function loadLeadsSilent() {
   if (_loadLeadsSilentRunning) return;
   if (window._suppressSilentLoad && Date.now() < window._suppressSilentLoad) return;
@@ -4753,6 +4754,8 @@ async function loadLeads() {
 }
 
 async function _loadLeadsFromGAS(showLoading) {
+  if (_loadLeadsFromGASRunning) return;
+  _loadLeadsFromGASRunning = true;
   const list = document.getElementById('leadsList');
   try {
     const PAGE_SIZE_API = 2000;
@@ -4791,6 +4794,8 @@ async function _loadLeadsFromGAS(showLoading) {
     }
   } catch(e){
     if (showLoading) list.innerHTML='<div class="empty-state"><div class="empty-title">Sin conexión</div><div class="empty-sub">Verifica tu internet</div></div>';
+  } finally {
+    _loadLeadsFromGASRunning = false;
   }
 }
 
