@@ -657,12 +657,6 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
 .dash-donut-svg circle.track {
   fill:none; stroke:var(--bg2); stroke-width:10;
 }
-.dash-donut-svg circle.seg {
-  fill:none; stroke-width:10; stroke-linecap:round;
-  stroke-dasharray:251; stroke-dashoffset:251;
-  animation:donutSpin .9s cubic-bezier(.32,.72,0,1) forwards;
-  transform-origin:50% 50%; transform:rotate(-90deg);
-}
 .dash-donut-label {
   position:absolute; inset:0; display:flex; flex-direction:column;
   align-items:center; justify-content:center; pointer-events:none;
@@ -2618,18 +2612,24 @@ function loadStats() {
         { val:s.venceHoy,  color:'var(--purple)', label:'Vence hoy' },
         { val:s.vencido,   color:'var(--fire)',   label:'Vencidos' },
       ];
-      const r=40, circ=2*Math.PI*r; // ≈251
-      let offset=0;
+      const r=40, circ=+(2*Math.PI*r).toFixed(2); // ≈251.33
+      let accumulated=0;
       const circles=segs.map((sg,i)=>{
-        const pct=sg.val/tot; const dash=pct*circ; const gap=circ-dash;
-        const delay=0.15+i*0.12;
-        const c=`<circle class="seg" cx="50" cy="50" r="${r}" stroke="${sg.color}"
-          stroke-dasharray="${dash} ${gap}" stroke-dashoffset="${circ-offset}"
-          style="animation-delay:${delay}s;animation-duration:.7s"/>`;
-        offset+=dash; return c;
+        const dash=+(sg.val/tot*circ).toFixed(2);
+        const gap=+(circ-dash).toFixed(2);
+        // dashoffset positions each segment: start = circ - accumulated_length
+        const dashOffset=+(circ-accumulated).toFixed(2);
+        const delay=0.1+i*0.13;
+        accumulated+=dash;
+        // Use SVG transform attribute (rotate -90 around center) for cross-browser support
+        return `<circle cx="50" cy="50" r="${r}" fill="none"
+          stroke="${sg.color}" stroke-width="10" stroke-linecap="butt"
+          stroke-dasharray="${dash} ${gap}" stroke-dashoffset="${dashOffset}"
+          transform="rotate(-90 50 50)"
+          style="transition:stroke-dashoffset .8s cubic-bezier(.32,.72,0,1) ${delay}s;opacity:1"/>`;
       }).join('');
       const legend=segs.map(sg=>`<div class="donut-leg-item">
-        <div class="donut-leg-dot" style="background:${sg.color}"></div>${sg.label}: <b>${sg.val}</b>
+        <div class="donut-leg-dot" style="background:${sg.color}"></div>${sg.label}:&nbsp;<b>${sg.val}</b>
       </div>`).join('');
       const existBox=document.getElementById('terminosBox');
       if(!existBox) return;
@@ -2645,7 +2645,7 @@ function loadStats() {
         <div class="dash-donut-wrap">
           <div class="dash-donut-center">
             <svg class="dash-donut-svg" width="90" height="90" viewBox="0 0 100 100">
-              <circle class="track" cx="50" cy="50" r="${r}"/>
+              <circle cx="50" cy="50" r="${r}" fill="none" stroke="var(--bg2)" stroke-width="10"/>
               ${circles}
             </svg>
             <div class="dash-donut-label">
