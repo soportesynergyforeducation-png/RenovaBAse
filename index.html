@@ -4611,6 +4611,12 @@ document.addEventListener('keydown',e=>{
 
 let _loadLeadsSilentRunning = false;
 let _loadLeadsFromGASRunning = false;
+let _leadsSilentHash = null;
+function _hashLeads(leads) {
+  if (!leads || !leads.length) return '0';
+  // Firma rápida: cantidad + fila+estado de cada lead
+  return leads.length + '|' + leads.map(l => l.fila + ':' + (l.estado||'') + ':' + (l.nombre||'')).join(',');
+}
 async function loadLeadsSilent() {
   if (_loadLeadsSilentRunning) return;
   if (window._suppressSilentLoad && Date.now() < window._suppressSilentLoad) return;
@@ -4619,18 +4625,22 @@ async function loadLeadsSilent() {
     const PAGE_SIZE_API = 2000;
     const first = await apiGet({action:'getLeads', rol:SESSION.rol, usuario:SESSION.usuario, page:0, pageSize:PAGE_SIZE_API});
     if (!first.ok) { console.warn('loadLeadsSilent: first page failed', first.error); return; }
-    const selectedFila = SELECTED_ROW;
-    const scrollTop = document.getElementById('leadsList').scrollTop;
-    ALL_LEADS = first.leads;
+    let newLeads = first.leads;
     const totalRows = first.totalRows || first.leads.length;
     const totalPages = Math.ceil(totalRows / PAGE_SIZE_API);
     for (let p = 1; p < totalPages; p++) {
       try {
         const res = await apiGet({action:'getLeads', rol:SESSION.rol, usuario:SESSION.usuario, page:p, pageSize:PAGE_SIZE_API});
-        if (res.ok && res.leads.length) ALL_LEADS = ALL_LEADS.concat(res.leads);
+        if (res.ok && res.leads.length) newLeads = newLeads.concat(res.leads);
         else console.warn('loadLeadsSilent page', p, 'failed:', res.error);
       } catch(e) { console.warn('loadLeadsSilent page', p, 'error:', e); }
     }
+    const newHash = _hashLeads(newLeads);
+    if (newHash === _leadsSilentHash) return; // sin cambios, no re-renderizar
+    _leadsSilentHash = newHash;
+    const selectedFila = SELECTED_ROW;
+    const scrollTop = document.getElementById('leadsList').scrollTop;
+    ALL_LEADS = newLeads;
     _leadsGuardarCache(ALL_LEADS);
     populateFilters();
     applyFilters(false);
