@@ -1,7 +1,7 @@
 // ============================================================
 // CONFIGURACIÓN
 // ============================================================
-const SOURCE_SPREADSHEET_ID = '1ST8JpV8FjfEIglvSLftu5l14-P51sexx4eIgDPHisjU';
+const SOURCE_SPREADSHEET_ID = '1lkFQJW8kMcwQ9hwl0ixalQFUyribvDYDahbrBOFQf_g';
 const DEST_SHEET_NAME       = 'Base General';
 const COL_INDICES           = [1, 2, 3, 4, 5, 7, 9, 10];
 const J_INDEX               = 9;
@@ -74,9 +74,11 @@ function instalarTriggerOnEdit() {
 // ============================================================
 // HELPERS
 // ============================================================
+const SOURCE_TAB_NAME = 'Registro de atención';
+
 function getSourceSheet() {
   const ss = SpreadsheetApp.openById(SOURCE_SPREADSHEET_ID);
-  return ss.getSheetByName(DEST_SHEET_NAME) || ss.getSheets()[0];
+  return ss.getSheetByName(SOURCE_TAB_NAME) || ss.getSheets()[0];
 }
 
 function getDestSheet() {
