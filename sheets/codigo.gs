@@ -72,11 +72,7 @@ function instalarTriggerOnEdit() {
 // ============================================================
 function getSourceSheet() {
   const ss = SpreadsheetApp.openById(SOURCE_SPREADSHEET_ID);
-  const sheets = ss.getSheets();
-  for (let i = 0; i < sheets.length; i++) {
-    if (sheets[i].getLastRow() > 1000) return sheets[i];
-  }
-  return sheets[0];
+  return ss.getSheetByName(DEST_SHEET_NAME) || ss.getSheets()[0];
 }
 
 function getDestSheet() {
