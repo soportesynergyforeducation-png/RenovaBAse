@@ -1,7 +1,7 @@
 // ============================================================
 // CONFIGURACIÓN
 // ============================================================
-const SOURCE_SPREADSHEET_ID = '1lkFQJW8kMcwQ9hwl0ixalQFUyribvDYDahbrBOFQf_g';
+const SOURCE_SPREADSHEET_ID = '1IkFQJW8kMcwQ9hwl0ixalQFUyribvDYDahbrBOFQf_g';
 const DEST_SHEET_NAME       = 'Base General';
 const COL_INDICES           = [1, 2, 3, 4, 5, 7, 9, 10];
 const J_INDEX               = 9;
