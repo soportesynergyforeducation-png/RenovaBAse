@@ -1330,6 +1330,7 @@ function loadFBScript(src){
 }
 var _fbDB=null;
 async function initFirebaseRT(){
+  _scoresSnapshotReady = new Promise(r => { _scoresSnapshotResolve = r; });
   try{
     await loadFBScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
     await loadFBScript('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js');
@@ -1402,10 +1403,22 @@ async function initFirebaseRT(){
         }, 2000);
       }, function(err){ console.warn('rb_pendientes RT error:', err); });
 
-    // Listener en rb_scores — sincroniza terminoTipo y pagoFechaVerif (verificados)
+    // Listener en rb_scores — primer snapshot pobla SCORES (reemplaza el .get() extra); cambios posteriores son incrementales
     var scoresFirstLoad = true;
     _fbDB.collection('rb_scores').onSnapshot(function(snap){
-      if(scoresFirstLoad){ scoresFirstLoad=false; return; }
+      if(scoresFirstLoad){
+        scoresFirstLoad = false;
+        // Solo poblar desde Firestore si el caché ya expiró; si está fresco, el caché ya se aplicó
+        if (!_scoresLeerCache()) {
+          const map = {};
+          snap.forEach(function(doc){ const d=doc.data(); map[doc.id]={score:d.score,termino:d.termino||'',terminoTipo:d.terminoTipo||'',pagoEstado:d.pagoEstado||'',pagoFechaVerif:d.pagoFechaVerif||'',comprobante:d.comprobante||'',fila:d.fila,hist:d.hist||[],estado:d.estado||'',notas:d.notas||'',com1:d.com1||'',com2:d.com2||'',com3:d.com3||'',com4:d.com4||''}; });
+          _scoresGuardarCache(map);
+          _scoresAplicarMap(map);
+          if(ALL_LEADS.length > 0){ renderTerminosDash(); renderComisionesDash(); applyFilters(false); }
+        }
+        if(_scoresSnapshotResolve){ _scoresSnapshotResolve(); _scoresSnapshotResolve=null; }
+        return;
+      }
       var changed = false;
       snap.docChanges().forEach(function(change){
         if(change.type==='removed') return;
@@ -2049,6 +2062,8 @@ const PAGE_SIZE    = 100;
 let USUARIOS_CACHE = [];  // lista de usuarios activos para el selector Abeja
 let SELECTED_FILAS = new Set(); // filas seleccionadas para asignación masiva
 let SCORES = {}; // { correo: { score, hist } } — cargado desde Firebase
+let _scoresSnapshotReady = null;   // Promise que resuelve cuando llega el primer onSnapshot de rb_scores
+let _scoresSnapshotResolve = null;
 
 // ══ SCORE FUNCTIONS ══
 const SCORE_ACTIONS = {
@@ -2225,23 +2240,16 @@ function _scoresAplicarMap(map) {
 }
 
 async function loadAllTerminoTipos() {
-  if (!_fbDB) return;
-
-  // Usar caché si está fresco — cero lecturas a Firestore
+  // Caché fresco: aplicar al instante, sin ninguna lectura a Firestore
+  // El onSnapshot activo ya recibirá cualquier cambio en tiempo real.
   const cached = _scoresLeerCache();
   if (cached) {
     _scoresAplicarMap(cached);
-    // Refrescar en background sin bloquear el render; re-renderizar al terminar
-    _scoresRefrescarFirestore().then(() => {
-      renderTerminosDash();
-      renderComisionesDash();
-      const tv = document.getElementById('view-terminos');
-      if (tv && tv.classList.contains('active')) renderTerminosView();
-    });
     return;
   }
-
-  await _scoresRefrescarFirestore();
+  // Sin caché: esperar el primer snapshot del listener (se cobra de todos modos, no añade lecturas extra)
+  if (_scoresSnapshotReady) await _scoresSnapshotReady;
+  // _scoresAplicarMap ya corrió dentro del handler del onSnapshot
 }
 
 async function _scoresRefrescarFirestore() {
