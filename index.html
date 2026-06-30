@@ -382,6 +382,7 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
   text-transform:uppercase; letter-spacing:.04em;
 }
 .role-badge.admin { background:var(--accent-lo); color:var(--accent) }
+.role-badge.coordinador { background:var(--go-lo,#e6f9f0); color:var(--go) }
 .role-badge.abeja { background:var(--warn-lo); color:var(--warn) }
 .hdr-btn {
   width:30px; height:30px; border-radius:7px; border:1px solid var(--border);
@@ -2000,7 +2001,7 @@ async function initFirebaseRT(){
     <div class="field"><label>Contraseña</label><input type="password" id="muPass" placeholder="••••••••"></div>
     <div class="field"><label>Nombre completo</label><input type="text" id="muNombre" placeholder="Juan Pérez"></div>
     <div class="field"><label>Rol</label>
-      <select id="muRol"><option value="abeja">Abeja (vendedor)</option><option value="admin">Admin</option></select>
+      <select id="muRol"><option value="abeja">Abeja (vendedor)</option><option value="coordinador">Coordinador</option><option value="admin">Admin</option></select>
     </div>
     <div class="modal-error" id="modalError"></div>
     <div class="modal-actions">
@@ -2416,7 +2417,7 @@ async function doLogin() {
   document.getElementById('userAvatar').textContent = _ini.toUpperCase();
     document.getElementById('userName').textContent   = SESSION.nombre;
     const rb = document.getElementById('roleBadge');
-    rb.textContent = SESSION.rol==='admin'?'Admin':'Abeja';
+    rb.textContent = SESSION.rol==='admin'?'Admin':SESSION.rol==='coordinador'?'Coordinador':'Abeja';
     rb.className   = 'role-badge '+SESSION.rol;
     if (SESSION.rol==='admin') {
       document.getElementById('filterAbeja').style.display='';
@@ -2426,6 +2427,16 @@ async function doLogin() {
       document.getElementById('bulkAbeja').style.display='';
       document.getElementById('bulkApply').style.display='';
       document.getElementById('filterOrden').value='vencido-asc';
+    } else if (SESSION.rol==='coordinador') {
+      document.getElementById('adminSideDiv').style.display='none';
+      document.getElementById('adminSideSection').style.display='none';
+      document.getElementById('filterAbeja').style.display='';
+      document.getElementById('filterTermAbeja').style.display='';
+      document.getElementById('sepTermAbeja').style.display='';
+      document.getElementById('bulkSep').style.display='';
+      document.getElementById('bulkAbeja').style.display='';
+      document.getElementById('bulkApply').style.display='';
+      document.getElementById('filterOrden').value='score-desc';
     } else {
       document.getElementById('adminSideDiv').style.display='none';
       document.getElementById('adminSideSection').style.display='none';
@@ -2463,7 +2474,7 @@ function startApp() {
   document.getElementById('userAvatar').textContent = SESSION.nombre.charAt(0).toUpperCase();
   document.getElementById('userName').textContent   = SESSION.nombre;
   const rb = document.getElementById('roleBadge');
-  rb.textContent  = SESSION.rol==='admin'?'Admin':'Abeja';
+  rb.textContent  = SESSION.rol==='admin'?'Admin':SESSION.rol==='coordinador'?'Coordinador':'Abeja';
   rb.className    = 'role-badge '+SESSION.rol;
   document.getElementById('chipPendientes').style.display='';
   if (SESSION.rol==='admin') {
@@ -2471,6 +2482,15 @@ function startApp() {
     document.getElementById('filterTermAbeja').style.display='';
     document.getElementById('sepTermAbeja').style.display='';
     document.getElementById('comisionesBox').style.display='';
+    document.getElementById('bulkSep').style.display='';
+    document.getElementById('bulkAbeja').style.display='';
+    document.getElementById('bulkApply').style.display='';
+  } else if (SESSION.rol==='coordinador') {
+    document.getElementById('adminSideDiv').style.display='none';
+    document.getElementById('adminSideSection').style.display='none';
+    document.getElementById('filterAbeja').style.display='';
+    document.getElementById('filterTermAbeja').style.display='';
+    document.getElementById('sepTermAbeja').style.display='';
     document.getElementById('bulkSep').style.display='';
     document.getElementById('bulkAbeja').style.display='';
     document.getElementById('bulkApply').style.display='';
@@ -2687,7 +2707,7 @@ function loadStats() {
 function getListaAbejas() {
   // Lista combinada: todos los usuarios no-admin del sistema + cualquier abeja en uso en leads
   const deUsuarios = (USUARIOS_CACHE||[])
-    .filter(u => String(u.rol||'').toLowerCase() !== 'admin')
+    .filter(u => !['admin','coordinador'].includes(String(u.rol||'').toLowerCase()))
     .map(u => u.usuario);
   const deLeads = ALL_LEADS.map(l=>(l.abeja||'').trim()).filter(Boolean);
   return [...new Set([...deUsuarios, ...deLeads])].sort((a,b)=>a.localeCompare(b));
@@ -2700,7 +2720,7 @@ async function refreshUsuariosCache() {
     if (d.ok) {
       USUARIOS_CACHE = d.usuarios;
       // Repoblar dropdowns visibles
-      if (SESSION && SESSION.rol === 'admin') populateFilters();
+      if (SESSION && (SESSION.rol === 'admin' || SESSION.rol === 'coordinador')) populateFilters();
       const tv = document.getElementById('view-terminos');
       if (tv && tv.classList.contains('active')) renderTerminosView();
     }
@@ -2721,7 +2741,7 @@ function populateTermAbejaFilter() {
 function populateFilters(){
   const mems=[...new Set(ALL_LEADS.map(l=>l.membresia).filter(Boolean))].sort();
   document.getElementById('filterMembresia').innerHTML='<option value="">Membresía</option>'+mems.map(m=>`<option value="${m}">${m}</option>`).join('');
-  if(SESSION.rol==='admin'){
+  if(SESSION.rol==='admin'||SESSION.rol==='coordinador'){
     const abejas = getListaAbejas();
     const sel = document.getElementById('filterAbeja');
     const cur = sel.value;
@@ -2826,7 +2846,7 @@ function renderLeads(){
 
   // Mostrar header de selección solo si hay leads y el usuario es admin
   const listHeader = document.getElementById('listHeader');
-  if(listHeader) listHeader.style.display = SESSION.rol==='admin' ? '' : 'none';
+  if(listHeader) listHeader.style.display = (SESSION.rol==='admin'||SESSION.rol==='coordinador') ? '' : 'none';
   const checkAll = document.getElementById('checkAll');
   if(checkAll) checkAll.checked = false;
 
@@ -2838,7 +2858,7 @@ function renderLeads(){
     const badge=vigenciaBadge(l.estadoVigencia);
     const isChecked=SELECTED_FILAS.has(l.fila);
     return`<div class="lead-row${isChecked?' checked':''}" style="animation-delay:${Math.min(i*.012,.2)}s" id="row-${l.fila}">
-      ${SESSION.rol==='admin'?`<input type="checkbox" class="lead-check" ${isChecked?'checked':''} onclick="toggleCheck(event,${l.fila})">`:''}
+      ${(SESSION.rol==='admin'||SESSION.rol==='coordinador')?`<input type="checkbox" class="lead-check" ${isChecked?'checked':''} onclick="toggleCheck(event,${l.fila})">`:''}
 
       <div class="lead-avatar" style="background:${color}" onclick="selectLead(${l.fila})">${ini}</div>
       <div class="lead-main" onclick="selectLead(${l.fila})">
@@ -3243,7 +3263,7 @@ function openDetailPanel(l, panelEl) {
     `<option value="${esc(o)}" ${o===val?'selected':''}>${o||'— Sin seleccionar —'}</option>`
   ).join('');
 
-  const selAbeja = SESSION.rol === 'admin' ? `
+  const selAbeja = (SESSION.rol === 'admin' || SESSION.rol === 'coordinador') ? `
     <div class="rp-sec">
       <div class="rp-sec-label">Asignación</div>
       <div class="dp-field" style="margin:0">
@@ -3609,7 +3629,7 @@ async function applyBulkAbeja() {
       showToast(msg, res.noEncontrados > 0);
       clearSelection();
       // Repoblar dropdowns por si la abeja era nueva, y refrescar vistas
-      if (SESSION.rol === 'admin') populateFilters();
+      if (SESSION.rol === 'admin' || SESSION.rol === 'coordinador') populateFilters();
       const tv = document.getElementById('view-terminos');
       if (tv && tv.classList.contains('active')) renderTerminosView();
       applyFilters(false);
@@ -3696,7 +3716,7 @@ async function saveLead(fila){
         applyFilters(false);
       }
       // Refrescar dropdowns y vistas (por si cambió la abeja)
-      if (SESSION.rol === 'admin') populateFilters();
+      if (SESSION.rol === 'admin' || SESSION.rol === 'coordinador') populateFilters();
       const tv = document.getElementById('view-terminos');
       if (tv && tv.classList.contains('active')) renderTerminosView();
       loadStats();
