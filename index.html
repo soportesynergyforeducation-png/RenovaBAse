@@ -1403,39 +1403,12 @@ async function initFirebaseRT(){
         }, 2000);
       }, function(err){ console.warn('rb_pendientes RT error:', err); });
 
-    // Listener en rb_scores — primer snapshot pobla SCORES (reemplaza el .get() extra); cambios posteriores son incrementales
-    var scoresFirstLoad = true;
-    _fbDB.collection('rb_scores').onSnapshot(function(snap){
-      if(scoresFirstLoad){
-        scoresFirstLoad = false;
-        // Solo poblar desde Firestore si el caché ya expiró; si está fresco, el caché ya se aplicó
-        if (!_scoresLeerCache()) {
-          const map = {};
-          snap.forEach(function(doc){ const d=doc.data(); map[doc.id]={score:d.score,termino:d.termino||'',terminoTipo:d.terminoTipo||'',pagoEstado:d.pagoEstado||'',pagoFechaVerif:d.pagoFechaVerif||'',comprobante:d.comprobante||'',fila:d.fila,hist:d.hist||[],estado:d.estado||'',notas:d.notas||'',com1:d.com1||'',com2:d.com2||'',com3:d.com3||'',com4:d.com4||''}; });
-          _scoresGuardarCache(map);
-          _scoresAplicarMap(map);
-          if(ALL_LEADS.length > 0){ renderTerminosDash(); renderComisionesDash(); applyFilters(false); }
-        }
-        if(_scoresSnapshotResolve){ _scoresSnapshotResolve(); _scoresSnapshotResolve=null; }
-        return;
-      }
-      var changed = false;
-      snap.docChanges().forEach(function(change){
-        if(change.type==='removed') return;
-        var d = change.doc.data();
-        var key = change.doc.id;
+    // Sync incremental de rb_scores: solo lee documentos modificados desde la última sync local
+    // (en vez de traer toda la colección cada vez). El caché en localStorage es permanente.
+    (async function syncScoresIncremental(){
+      function applyDocChange(key, d){
         if(!SCORES[key]) SCORES[key] = {};
         Object.assign(SCORES[key], d);
-        // Mantener caché local sincronizado
-        try {
-          var raw = localStorage.getItem(SCORES_CACHE_KEY);
-          if (raw) {
-            var parsed = JSON.parse(raw);
-            parsed.data[key] = Object.assign(parsed.data[key]||{}, d);
-            parsed.ts = Date.now();
-            localStorage.setItem(SCORES_CACHE_KEY, JSON.stringify(parsed));
-          }
-        } catch(e) {}
         var lead = ALL_LEADS.find(function(l){ return scoreKey(l.correo)===key; });
         if(lead){
           if(d.termino)        lead.termino        = d.termino;
@@ -1448,24 +1421,53 @@ async function initFirebaseRT(){
           if(d.com2)           lead.com2           = d.com2;
           if(d.com3)           lead.com3           = d.com3;
           if(d.com4)           lead.com4           = d.com4;
-          changed = true;
+          return true;
         }
-      });
-      if(changed && !_loadLeadsSilentRunning){
-        var localWrite = window._localScoreWrite;
-        if(localWrite) window._localScoreWrite = false;
-        clearTimeout(window._scoresRenderDebounce);
-        window._scoresRenderDebounce = setTimeout(function(){
-          if(_loadLeadsSilentRunning) return;
-          renderTerminosDash();
-          renderComisionesDash();
-          applyFilters(false);
-          var tv = document.getElementById('view-terminos');
-          if(tv && tv.classList.contains('active')) renderTerminosView();
-          if(!localWrite) refreshOpenPanel();
-        }, 300);
+        return false;
       }
-    }, function(err){ console.warn('rb_scores RT error:', err); });
+      const cutoff = _scoresGetLastSync();
+      const syncStart = new Date().toISOString();
+      try {
+        let q = _fbDB.collection('rb_scores');
+        if (cutoff) q = q.where('updatedAt', '>', cutoff);
+        const snap = await q.get();
+        if (!snap.empty) {
+          const map = {};
+          snap.forEach(function(doc){ const d=doc.data(); map[doc.id]={score:d.score,termino:d.termino||'',terminoTipo:d.terminoTipo||'',pagoEstado:d.pagoEstado||'',pagoFechaVerif:d.pagoFechaVerif||'',comprobante:d.comprobante||'',fila:d.fila,hist:d.hist||[],estado:d.estado||'',notas:d.notas||'',com1:d.com1||'',com2:d.com2||'',com3:d.com3||'',com4:d.com4||''}; });
+          _scoresMergeCache(map);
+          Object.keys(map).forEach(function(key){ applyDocChange(key, map[key]); });
+          if(ALL_LEADS.length > 0){ renderTerminosDash(); renderComisionesDash(); applyFilters(false); }
+        }
+        _scoresSetLastSync(syncStart);
+      } catch(e) { console.warn('sync incremental rb_scores error:', e); }
+      if(_scoresSnapshotResolve){ _scoresSnapshotResolve(); _scoresSnapshotResolve=null; }
+
+      // Listener en tiempo real solo para cambios a partir de ahora (0 lecturas en la conexión inicial)
+      _fbDB.collection('rb_scores').where('updatedAt', '>', syncStart).onSnapshot(function(snap){
+        var changed = false;
+        snap.docChanges().forEach(function(change){
+          if(change.type==='removed') return;
+          var d = change.doc.data();
+          var key = change.doc.id;
+          _scoresMergeCache({ [key]: d });
+          if(applyDocChange(key, d)) changed = true;
+        });
+        if(changed && !_loadLeadsSilentRunning){
+          var localWrite = window._localScoreWrite;
+          if(localWrite) window._localScoreWrite = false;
+          clearTimeout(window._scoresRenderDebounce);
+          window._scoresRenderDebounce = setTimeout(function(){
+            if(_loadLeadsSilentRunning) return;
+            renderTerminosDash();
+            renderComisionesDash();
+            applyFilters(false);
+            var tv = document.getElementById('view-terminos');
+            if(tv && tv.classList.contains('active')) renderTerminosView();
+            if(!localWrite) refreshOpenPanel();
+          }, 300);
+        }
+      }, function(err){ console.warn('rb_scores RT error:', err); });
+    })();
 
     // Listener de actualizaciones generales — aplica campos al instante y recarga Sheets como respaldo
     var updatesFirstLoad = true;
@@ -2183,15 +2185,7 @@ async function saveScoreToFirebase(key, st) {
     if (st.com4)           doc.com4           = st.com4;
     await _fbDB.collection('rb_scores').doc(key).set(doc, { merge: true });
     // Actualizar caché local con este doc para no invalidarlo completo
-    try {
-      const raw = localStorage.getItem(SCORES_CACHE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        parsed.data[key] = Object.assign(parsed.data[key]||{}, doc);
-        parsed.ts = Date.now();
-        localStorage.setItem(SCORES_CACHE_KEY, JSON.stringify(parsed));
-      }
-    } catch(e) {}
+    _scoresMergeCache({ [key]: doc });
   } catch(e) { console.warn('saveScore error:', e); }
 }
 
@@ -2199,13 +2193,31 @@ async function loadScoresFromFirebase(leads) {
   // No-op — scores se cargan de forma lazy al abrir cada lead
 }
 
-const SCORES_CACHE_KEY = 'rb_scores_cache';
-const SCORES_CACHE_TTL = 45 * 60 * 1000; // 45 min — onSnapshot mantiene datos frescos en tiempo real
+const SCORES_CACHE_KEY = 'rb_scores_cache'; // caché permanente: se actualiza por sync incremental, nunca expira
+const SCORES_SYNC_KEY = 'rb_scores_last_sync'; // ISO timestamp de la última sincronización exitosa
 
 function _scoresGuardarCache(map) {
   try {
-    localStorage.setItem(SCORES_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: map }));
+    localStorage.setItem(SCORES_CACHE_KEY, JSON.stringify({ data: map }));
   } catch(e) {}
+}
+
+function _scoresMergeCache(partial) {
+  try {
+    const raw = localStorage.getItem(SCORES_CACHE_KEY);
+    const parsed = raw ? JSON.parse(raw) : { data: {} };
+    if (!parsed.data) parsed.data = {};
+    Object.keys(partial).forEach(function(k){ parsed.data[k] = Object.assign(parsed.data[k]||{}, partial[k]); });
+    localStorage.setItem(SCORES_CACHE_KEY, JSON.stringify(parsed));
+  } catch(e) {}
+}
+
+function _scoresGetLastSync() {
+  try { return localStorage.getItem(SCORES_SYNC_KEY) || ''; } catch(e) { return ''; }
+}
+
+function _scoresSetLastSync(iso) {
+  try { localStorage.setItem(SCORES_SYNC_KEY, iso); } catch(e) {}
 }
 
 function _scoresLeerCache() {
@@ -2213,8 +2225,7 @@ function _scoresLeerCache() {
     const raw = localStorage.getItem(SCORES_CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (Date.now() - parsed.ts > SCORES_CACHE_TTL) return null;
-    return parsed.data;
+    return parsed.data || null;
   } catch(e) { return null; }
 }
 
@@ -2240,36 +2251,15 @@ function _scoresAplicarMap(map) {
 }
 
 async function loadAllTerminoTipos() {
-  // Caché fresco: aplicar al instante, sin ninguna lectura a Firestore
-  // El onSnapshot activo ya recibirá cualquier cambio en tiempo real.
+  // Aplica el caché local (persistente) al instante; el sync incremental de rb_scores
+  // (en initFirebaseRT) lo mantiene al día trayendo solo lo que cambió desde la última vez.
   const cached = _scoresLeerCache();
   if (cached) {
     _scoresAplicarMap(cached);
     return;
   }
-  // Sin caché: esperar el primer snapshot del listener (se cobra de todos modos, no añade lecturas extra)
+  // Sin caché todavía (primer uso en este navegador): esperar la sync incremental inicial
   if (_scoresSnapshotReady) await _scoresSnapshotReady;
-  // _scoresAplicarMap ya corrió dentro del handler del onSnapshot
-}
-
-async function _scoresRefrescarFirestore() {
-  if (!_fbDB) return;
-  try {
-    const snap = await _fbDB.collection('rb_scores').get();
-    const map = {};
-    snap.forEach(doc => {
-      const d = doc.data();
-      map[doc.id] = {
-        score: d.score, termino: d.termino||'', terminoTipo: d.terminoTipo||'',
-        pagoEstado: d.pagoEstado||'', pagoFechaVerif: d.pagoFechaVerif||'',
-        comprobante: d.comprobante||'', fila: d.fila, hist: d.hist||[],
-        estado: d.estado||'', notas: d.notas||'',
-        com1: d.com1||'', com2: d.com2||'', com3: d.com3||'', com4: d.com4||''
-      };
-    });
-    _scoresGuardarCache(map);
-    _scoresAplicarMap(map);
-  } catch(e) { console.warn('loadAllTerminoTipos error:', e); }
 }
 
 async function loadComisiones() {
@@ -5131,6 +5121,10 @@ async function resetScore(fila) {
   if (!confirm(`¿Reiniciar el score de ${lead.nombre || lead.correo}?`)) return;
   const key = scoreKey(lead.correo);
   delete SCORES[key];
+  try {
+    const raw = localStorage.getItem(SCORES_CACHE_KEY);
+    if (raw) { const parsed = JSON.parse(raw); if (parsed.data) delete parsed.data[key]; localStorage.setItem(SCORES_CACHE_KEY, JSON.stringify(parsed)); }
+  } catch(e) {}
   if (_fbDB) {
     try {
       await _fbDB.collection('rb_scores').doc(key).delete();
@@ -5145,6 +5139,7 @@ async function resetAllScores() {
   if (!confirm('¿Reiniciar los scores de TODOS los leads? Esta acción no se puede deshacer.')) return;
   SCORES = {};
   PENDIENTES_MAP = {};
+  try { localStorage.removeItem(SCORES_CACHE_KEY); localStorage.removeItem(SCORES_SYNC_KEY); } catch(e) {}
   if (_fbDB) {
     try {
       const snap = await _fbDB.collection('rb_scores').get();
