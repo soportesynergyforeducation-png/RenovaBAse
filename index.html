@@ -4801,16 +4801,17 @@ async function _loadLeadsFromGAS(showLoading) {
       if (showLoading) list.innerHTML=`<div class="empty-state"><div class="empty-title">Error</div><div class="empty-sub">${first.error}</div></div>`;
       return;
     }
-    ALL_LEADS = first.leads;
+    let accLeads = first.leads;
     const totalRows = first.totalRows || first.leads.length;
     const totalPages = Math.ceil(totalRows / PAGE_SIZE_API);
     for (let p = 1; p < totalPages; p++) {
-      if (showLoading) list.innerHTML = loadingHTML(`Cargando leads… ${ALL_LEADS.length} de ${totalRows}`);
+      if (showLoading) list.innerHTML = loadingHTML(`Cargando leads… ${accLeads.length} de ${totalRows}`);
       try {
         const res = await apiGet({action:'getLeads', rol:SESSION.rol, usuario:SESSION.usuario, page:p, pageSize:PAGE_SIZE_API});
-        if (res.ok && res.leads.length) ALL_LEADS = ALL_LEADS.concat(res.leads);
+        if (res.ok && res.leads.length) accLeads = accLeads.concat(res.leads);
       } catch(e) { console.warn('loadLeads page', p, 'error:', e); }
     }
+    ALL_LEADS = accLeads;
     _leadsGuardarCache(ALL_LEADS);
     if (showLoading) list.innerHTML = loadingHTML('Preparando scores…');
     if (!USUARIOS_CACHE.length && SESSION.rol === 'admin') {
