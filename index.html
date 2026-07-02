@@ -2877,6 +2877,7 @@ function renderLeads(){
       <div class="lead-main" onclick="selectLead(${l.fila})">
         <div class="lead-name">${esc(l.nombre||'Sin nombre')}</div>
         <div class="lead-meta">${esc(l.correo||'')}${l.telefono?' · '+esc(l.telefono):''}</div>
+        <div class="lead-meta" style="color:var(--text3)">${l.fechaInscripcion?`Inscripción: ${esc(l.fechaInscripcion)}`:''}${l.fechaInscripcion&&l.vencimiento?' · ':''}${l.vencimiento?`Vence: ${esc(l.vencimiento)}`:''}</div>
       </div>
       ${(()=>{const h=(SCORES[scoreKey(l.correo)]?.hist||[])[0];return h&&h.ts?`<div class="lead-last-action" onclick="selectLead(${l.fila})">${esc(h.text)} · ${relTime(h.ts)}</div>`:'<div class="lead-last-action"></div>';})()}
       <div class="lead-right" onclick="selectLead(${l.fila})">
