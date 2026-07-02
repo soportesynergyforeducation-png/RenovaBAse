@@ -2772,22 +2772,33 @@ function parseFechaInscripcionFlex(str){
     const d = new Date(s);
     return isNaN(d) ? null : d;
   }
-  // Con hora: "M/D/YY HH:MMAM|PM" (exportado de Skool)
+  // Con hora: "N/N/YY HH:MMAM|PM" (exportado de Skool)
   let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
   if(m){
-    let [,mo,d,y,h,mi,ap] = m;
-    mo=+mo; d=+d; y=+y; h=+h; mi=+mi;
+    let [,n1,n2,y,h,mi,ap] = m;
+    n1=+n1; n2=+n2; y=+y; h=+h; mi=+mi;
     if(y<100) y+=2000;
     if(ap){ ap=ap.toUpperCase(); if(ap==='PM'&&h<12) h+=12; if(ap==='AM'&&h===12) h=0; }
+    // Si un número no puede ser mes (>12), ese es el día; si ambos son ambiguos, asumimos M/D (con hora = export Skool)
+    let mo, d;
+    if(n1>12 && n2<=12){ d=n1; mo=n2; }
+    else if(n2>12 && n1<=12){ mo=n1; d=n2; }
+    else if(n1>12 && n2>12){ return null; }
+    else { mo=n1; d=n2; }
     const dt = new Date(y,mo-1,d,h,mi);
     return isNaN(dt) ? null : dt;
   }
-  // Sin hora: "D/M/YYYY" (captura manual)
+  // Sin hora: "N/N/YYYY" (captura manual, normalmente D/M/Y)
   m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if(m){
-    let [,d,mo,y] = m;
-    d=+d; mo=+mo; y=+y;
+    let [,n1,n2,y] = m;
+    n1=+n1; n2=+n2; y=+y;
     if(y<100) y+=2000;
+    let mo, d;
+    if(n1>12 && n2<=12){ d=n1; mo=n2; }
+    else if(n2>12 && n1<=12){ mo=n1; d=n2; }
+    else if(n1>12 && n2>12){ return null; }
+    else { d=n1; mo=n2; }
     const dt = new Date(y,mo-1,d);
     return isNaN(dt) ? null : dt;
   }
