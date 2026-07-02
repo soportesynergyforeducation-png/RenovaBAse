@@ -1834,6 +1834,9 @@ async function initFirebaseRT(){
             <option value="score-desc">⭐ Mayor score primero</option>
             <option value="score-asc">⭐ Menor score primero</option>
           </select>
+          <input type="date" id="filterFechaDesde" class="filter-select" style="padding:4px 8px;font-size:12px" onchange="applyFilters()" title="Vence desde">
+          <span style="color:var(--text3);font-size:12px">→</span>
+          <input type="date" id="filterFechaHasta" class="filter-select" style="padding:4px 8px;font-size:12px" onchange="applyFilters()" title="Vence hasta">
           <div class="toolbar-right">
             <button class="btn-sm" onclick="exportCSV()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -2762,6 +2765,12 @@ function applyFilters(resetPage=true){
   const search=(document.getElementById('globalSearch').value||'').toLowerCase().trim();
   const memF=document.getElementById('filterMembresia').value;
   const abF=document.getElementById('filterAbeja')?document.getElementById('filterAbeja').value:'';
+  const desdeEl=document.getElementById('filterFechaDesde')?.value||'';
+  const hastaEl=document.getElementById('filterFechaHasta')?.value||'';
+  let fDesde=null, fHasta=null;
+  if(desdeEl){ const [y,mo,d]=desdeEl.split('-').map(Number); fDesde=new Date(y,mo-1,d,0,0,0); }
+  if(hastaEl){ const [y,mo,d]=hastaEl.split('-').map(Number); fHasta=new Date(y,mo-1,d,23,59,59,999); }
+  const parseVenc = v => { if(!v) return null; const [d,m,y]=v.split('/'); return new Date(y,m-1,d); };
   // Si hay múltiples palabras, todas deben coincidir
   const searchTerms = search ? search.split(/\s+/).filter(Boolean) : [];
   FILTERED=ALL_LEADS.filter(l=>{
@@ -2773,6 +2782,12 @@ function applyFilters(resetPage=true){
     if(abF){
       if(abF==='__sin__'){ if((l.abeja||'').trim()) return false; }
       else if(l.abeja!==abF) return false;
+    }
+    if(fDesde||fHasta){
+      const fv=parseVenc(l.vencimiento);
+      if(!fv) return false;
+      if(fDesde&&fv<fDesde) return false;
+      if(fHasta&&fv>fHasta) return false;
     }
     if(searchTerms.length){
       const hay=(
