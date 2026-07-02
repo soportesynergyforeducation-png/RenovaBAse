@@ -2761,6 +2761,60 @@ function setChipByValue(val){
   ACTIVE_CHIP=val; applyFilters();
 }
 
+// ── Fecha de vencimiento calculada (inscripción + duración de membresía) ──
+function parseFechaInscripcionFlex(str){
+  if(!str) return null;
+  const s = String(str).trim();
+  if(!s) return null;
+  // Formato tipo "Sat Jan 04 2025 00:00:00 GMT-0600 ..." (parseable nativamente)
+  if(/^[A-Za-z]{3}\s+[A-Za-z]{3}\s+\d{1,2}\s+\d{4}/.test(s)){
+    const d = new Date(s);
+    return isNaN(d) ? null : d;
+  }
+  // Con hora: "M/D/YY HH:MMAM|PM" (exportado de Skool)
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if(m){
+    let [,mo,d,y,h,mi,ap] = m;
+    mo=+mo; d=+d; y=+y; h=+h; mi=+mi;
+    if(y<100) y+=2000;
+    if(ap){ ap=ap.toUpperCase(); if(ap==='PM'&&h<12) h+=12; if(ap==='AM'&&h===12) h=0; }
+    const dt = new Date(y,mo-1,d,h,mi);
+    return isNaN(dt) ? null : dt;
+  }
+  // Sin hora: "D/M/YYYY" (captura manual)
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if(m){
+    let [,d,mo,y] = m;
+    d=+d; mo=+mo; y=+y;
+    if(y<100) y+=2000;
+    const dt = new Date(y,mo-1,d);
+    return isNaN(dt) ? null : dt;
+  }
+  const fallback = new Date(s);
+  return isNaN(fallback) ? null : fallback;
+}
+function parseDuracionMeses(membresia){
+  if(!membresia) return null;
+  const s = String(membresia).toLowerCase();
+  let m = s.match(/(\d+)\s*mes/);
+  if(m) return +m[1];
+  m = s.match(/(\d+)\s*a(ñ|n)o/);
+  if(m) return +m[1]*12;
+  return null;
+}
+function calcVencimiento(l){
+  const ins = parseFechaInscripcionFlex(l.fechaInscripcion);
+  const meses = parseDuracionMeses(l.membresia);
+  if(!ins || meses===null) return null;
+  const v = new Date(ins.getTime());
+  v.setMonth(v.getMonth()+meses);
+  return v;
+}
+function fmtFechaDMY(d){
+  if(!d) return '';
+  return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+}
+
 function applyFilters(resetPage=true){
   const search=(document.getElementById('globalSearch').value||'').toLowerCase().trim();
   const memF=document.getElementById('filterMembresia').value;
@@ -2870,6 +2924,10 @@ function renderLeads(){
     const diasTxt=l.diasParaVencer!==null?(l.diasParaVencer<0?`hace ${Math.abs(l.diasParaVencer)}d`:l.diasParaVencer===0?'hoy':`en ${l.diasParaVencer}d`):'';
     const badge=vigenciaBadge(l.estadoVigencia);
     const isChecked=SELECTED_FILAS.has(l.fila);
+    const vencCalc=calcVencimiento(l);
+    const vencCalcTxt=vencCalc?fmtFechaDMY(vencCalc):(l.vencimiento||'');
+    const vencRaw=l.vencimiento?parseFechaInscripcionFlex(l.vencimiento):null;
+    const vencMismatch=vencCalc && vencRaw && Math.abs(vencCalc-vencRaw)>24*60*60*1000;
     return`<div class="lead-row${isChecked?' checked':''}" style="animation-delay:${Math.min(i*.012,.2)}s" id="row-${l.fila}">
       ${(SESSION.rol==='admin'||SESSION.rol==='coordinador')?`<input type="checkbox" class="lead-check" ${isChecked?'checked':''} onclick="toggleCheck(event,${l.fila})">`:''}
 
@@ -2877,7 +2935,7 @@ function renderLeads(){
       <div class="lead-main" onclick="selectLead(${l.fila})">
         <div class="lead-name">${esc(l.nombre||'Sin nombre')}</div>
         <div class="lead-meta">${esc(l.correo||'')}${l.telefono?' · '+esc(l.telefono):''}</div>
-        <div class="lead-meta" style="color:var(--text3)">${l.fechaInscripcion?`Inscripción: ${esc(l.fechaInscripcion)}`:''}${l.fechaInscripcion&&l.vencimiento?' · ':''}${l.vencimiento?`Vence: ${esc(l.vencimiento)}`:''}</div>
+        <div class="lead-meta" style="color:var(--text3)">${l.fechaInscripcion?`Inscripción: ${esc(l.fechaInscripcion)}`:''}${l.fechaInscripcion&&vencCalcTxt?' · ':''}${vencCalcTxt?`Vence: ${esc(vencCalcTxt)}`:''}${vencMismatch?` <span title="El sheet indica ${esc(l.vencimiento)}, pero según inscripción+membresía debería ser ${esc(vencCalcTxt)}" style="color:var(--fire)">⚠</span>`:''}</div>
       </div>
       ${(()=>{const h=(SCORES[scoreKey(l.correo)]?.hist||[])[0];return h&&h.ts?`<div class="lead-last-action" onclick="selectLead(${l.fila})">${esc(h.text)} · ${relTime(h.ts)}</div>`:'<div class="lead-last-action"></div>';})()}
       <div class="lead-right" onclick="selectLead(${l.fila})">
