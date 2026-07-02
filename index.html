@@ -728,7 +728,8 @@ html,body { height:100%; font-family:var(--font); background:var(--bg); color:va
 .lead-main { flex:1; min-width:0 }
 .lead-name { font-size:13px; font-weight:600; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .lead-meta { font-size:11px; color:var(--text2); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
-.lead-last-action { flex:1; min-width:0; font-size:10px; color:var(--text3); text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; align-self:center }
+.lead-dates { flex:1; min-width:0; font-size:11px; color:var(--text3); text-align:center; cursor:pointer; align-self:center; line-height:1.5 }
+.lead-dates div { white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .lead-right { display:flex; flex-direction:column; align-items:flex-end; gap:3px; flex-shrink:0 }
 .vigencia-badge {
   font-size:10px; font-weight:600; padding:2px 8px; border-radius:10px;
@@ -2935,9 +2936,11 @@ function renderLeads(){
       <div class="lead-main" onclick="selectLead(${l.fila})">
         <div class="lead-name">${esc(l.nombre||'Sin nombre')}</div>
         <div class="lead-meta">${esc(l.correo||'')}${l.telefono?' · '+esc(l.telefono):''}</div>
-        <div class="lead-meta" style="color:var(--text3)">${l.fechaInscripcion?`Inscripción: ${esc(l.fechaInscripcion)}`:''}${l.fechaInscripcion&&vencCalcTxt?' · ':''}${vencCalcTxt?`Vence: ${esc(vencCalcTxt)}`:''}${vencMismatch?` <span title="El sheet indica ${esc(l.vencimiento)}, pero según inscripción+membresía debería ser ${esc(vencCalcTxt)}" style="color:var(--fire)">⚠</span>`:''}</div>
       </div>
-      ${(()=>{const h=(SCORES[scoreKey(l.correo)]?.hist||[])[0];return h&&h.ts?`<div class="lead-last-action" onclick="selectLead(${l.fila})">${esc(h.text)} · ${relTime(h.ts)}</div>`:'<div class="lead-last-action"></div>';})()}
+      <div class="lead-dates" onclick="selectLead(${l.fila})">
+        ${l.fechaInscripcion?`<div>Inscripción: ${esc(l.fechaInscripcion)}</div>`:''}
+        ${vencCalcTxt?`<div>Vence: ${esc(vencCalcTxt)}${vencMismatch?` <span title="El sheet indica ${esc(l.vencimiento)}, pero según inscripción+membresía debería ser ${esc(vencCalcTxt)}" style="color:var(--fire)">⚠</span>`:''}</div>`:''}
+      </div>
       <div class="lead-right" onclick="selectLead(${l.fila})">
         <div class="${badge.cls}">${badge.txt}</div>
         <div class="lead-dias">${diasTxt}</div>
