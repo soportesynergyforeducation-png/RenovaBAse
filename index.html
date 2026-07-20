@@ -2707,10 +2707,8 @@ function loadStats() {
 }
 
 function getListaAbejas() {
-  // Lista combinada: todos los usuarios no-admin del sistema + cualquier abeja en uso en leads
-  const deUsuarios = (USUARIOS_CACHE||[])
-    .filter(u => !['admin','coordinador'].includes(String(u.rol||'').toLowerCase()))
-    .map(u => u.usuario);
+  // Lista combinada: todos los usuarios del sistema + cualquier abeja en uso en leads
+  const deUsuarios = (USUARIOS_CACHE||[]).map(u => u.usuario);
   const deLeads = ALL_LEADS.map(l=>(l.abeja||'').trim()).filter(Boolean);
   return [...new Set([...deUsuarios, ...deLeads])].sort((a,b)=>a.localeCompare(b));
 }
@@ -3357,7 +3355,10 @@ function openDetailPanel(l, panelEl) {
         <label>Abeja asignada</label>
         <select id="dp_abeja">
           <option value="">— Sin asignar —</option>
-          ${abejaOpts.map(u=>`<option value="${esc(u.usuario)}" ${u.usuario===l.abeja?'selected':''}>${esc(u.nombre)} (@${esc(u.usuario)})</option>`).join('')}
+          ${abejaOpts.map(u=>{
+            const rolLbl = {abeja:'Vendedor', coordinador:'Coordinador', admin:'Admin'}[String(u.rol||'').toLowerCase()] || u.rol || '';
+            return `<option value="${esc(u.usuario)}" ${u.usuario===l.abeja?'selected':''}>${esc(u.nombre)} (@${esc(u.usuario)})${rolLbl?` — ${esc(rolLbl)}`:''}</option>`;
+          }).join('')}
         </select>
       </div>
     </div>` : '';
